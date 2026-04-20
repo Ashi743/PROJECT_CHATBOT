@@ -23,8 +23,9 @@ def chat_node(state:chatState):
     response =llm_model.invoke(message)
     return {'messages': [response]}
 
-
+## -------------------- MEMORY CHECKPOINTING --------------------
 checkpointer= InMemorySaver()
+## --------------------------------------------------------------
 
 graph= StateGraph(chatState)
 graph.add_node("chat_node", chat_node)

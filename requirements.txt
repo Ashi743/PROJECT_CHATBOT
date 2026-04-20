@@ -11,3 +11,4 @@ requests>=2.32.0
 pydantic>=2.10.0
 typing-extensions>=4.0.0
 langgraph-checkpoint>=1.0.0
+streamlit>=1.28.0
