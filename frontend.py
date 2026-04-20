@@ -1,11 +1,10 @@
 import streamlit as st
 from backend import chatbot
-from langchain.messages import HumanMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 CONFIG11 = RunnableConfig(configurable={"thread_id": "thread-1"})
 
-#message =['user' , 'content':user-input]
 
 #to append in  streamlit based stateful session dict 
 

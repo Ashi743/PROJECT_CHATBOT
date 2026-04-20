@@ -43,7 +43,7 @@ OPENAI_API_KEY=your_api_key_here
 ```
 5. To Run:
 python backend.py
-streamlit frontend.py
+python -m streamlit run frontend.py   
 
 
 ## Usage
