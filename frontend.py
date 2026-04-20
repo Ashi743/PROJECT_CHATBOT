@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 from backend import chatbot
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -26,13 +26,14 @@ if user_input:
     with st.chat_message("user"):
         st.text(user_input)
 
-    ## invoke the chatbot with the user input and get response from the backend 
-    response= chatbot.invoke({'messages':[HumanMessage(content=user_input)]}, config=CONFIG11)
-    ai_message= response["messages"][-1].content
 
-
-    ## append the ai response to the message history using the checkpointer and display in chat format 
-    st.session_state["message_history"].append({'role':'assistant', 'content':ai_message})
     with st.chat_message("assistant"):
-        st.text(ai_message)
+        ai_message = st.write_stream(
+                message_chunk for message_chunk, metadata in chatbot.stream(
+                    {'messages':[HumanMessage(content=user_input)]}, 
+                    config=CONFIG11,
+                    stream_mode="messages")
+                                )
+    
+    st.session_state["message_history"].append({'role':'assistant', 'content':ai_message})
         
