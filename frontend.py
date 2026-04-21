@@ -1,5 +1,5 @@
 import streamlit as st
-from backend import chatbot, retrieve_thread, save_thread_label
+from backend import chatbot, retrieve_thread, save_thread_label, delete_thread, rename_thread
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from uuid import uuid4
@@ -83,9 +83,40 @@ with st.sidebar:
         st.divider()
         st.write("**Chat History**")
         for thread in reversed(st.session_state["threads"]):
-            if st.button(thread["label"], key=f"thread_{thread['id']}", use_container_width=True):
-                switch_to_thread(thread["id"])
-                st.rerun()
+            col1, col2, col3 = st.columns([5, 1, 1])
+            with col1:
+                if st.button(thread["label"], key=f"thread_{thread['id']}", use_container_width=True):
+                    switch_to_thread(thread["id"])
+                    st.rerun()
+            with col2:
+                if st.button("✏️", key=f"rename_{thread['id']}", help="Rename chat"):
+                    st.session_state[f"rename_mode_{thread['id']}"] = True
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"delete_{thread['id']}", help="Delete chat"):
+                    delete_thread(thread["id"])
+                    st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
+                    if st.session_state["current_thread_id"] == thread["id"]:
+                        st.session_state["chat_started"] = False
+                        st.session_state["current_thread_id"] = None
+                        st.session_state["message_history"] = []
+                    st.rerun()
+
+            # Rename input field
+            if st.session_state.get(f"rename_mode_{thread['id']}", False):
+                new_label = st.text_input("New name:", value=thread["label"], key=f"rename_input_{thread['id']}")
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("Save", key=f"save_rename_{thread['id']}"):
+                        if new_label and new_label.strip():
+                            rename_thread(thread["id"], new_label)
+                            thread["label"] = new_label
+                            st.session_state[f"rename_mode_{thread['id']}"] = False
+                            st.rerun()
+                with col_cancel:
+                    if st.button("Cancel", key=f"cancel_rename_{thread['id']}"):
+                        st.session_state[f"rename_mode_{thread['id']}"] = False
+                        st.rerun()
 
 if not st.session_state["chat_started"]:
     st.markdown("# Welcome to Chat App!")
