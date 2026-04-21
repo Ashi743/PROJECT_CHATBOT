@@ -13,16 +13,10 @@ pip install -r requirements.txt
 Create a `.env` file with:
 ```
 OPENAI_API_KEY=your_openai_key_here
-TELEGRAM_BOT_TOKEN=your_bot_token      (optional, for Telegram alerts)
-TELEGRAM_CHAT_ID=your_chat_id          (optional, for Telegram alerts)
 ```
 
 **Required Keys:**
 - `OPENAI_API_KEY` - Get from OpenAI (required)
-
-**Optional Keys:**
-- `TELEGRAM_BOT_TOKEN` - Get from @BotFather on Telegram
-- `TELEGRAM_CHAT_ID` - Your personal Telegram user ID
 
 **Run the chatbot:**
 ```bash
@@ -66,12 +60,6 @@ The backend uses **LangGraph StateGraph** to manage conversation flow with tool 
   - Options: number of results (1-10)
   - Returns: Search results with titles, URLs, and summaries
   - No API key needed - completely free and anonymous
-
-- **send_telegram_alert**: Send alerts/messages to Telegram
-  - Input: Message text and alert type (info/success/warning/error/critical)
-  - Returns: Confirmation that message was sent to Telegram
-  - Setup: Get bot token from @BotFather, add to .env
-  - Examples: "Alert: Task completed", "Send critical alert: System error"
 
 **Key Design Pattern:**
 - Messages reducer (`add_messages`) automatically merges new messages into state history

@@ -16,8 +16,7 @@ AVAILABLE_TOOLS = {
     "Stock Price": "Get real-time stock prices (yfinance)",
     "India Time": "Current date & time in India (IST)",
     "Calculator": "Math with BODMAS & trigonometry",
-    "Web Search": "Real-time web search (DuckDuckGo)",
-    "Telegram Alert": "Send alerts to Telegram (BotFather)"
+    "Web Search": "Real-time web search (DuckDuckGo)"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -85,7 +84,7 @@ with st.sidebar:
 
     # Show available tools
     st.subheader("📚 Available Tools")
-    with st.expander("View Tools (5 available)", expanded=False):
+    with st.expander("View Tools (4 available)", expanded=False):
         for tool_name, tool_desc in AVAILABLE_TOOLS.items():
             st.caption(f"**{tool_name}**: {tool_desc}")
 
@@ -153,20 +152,18 @@ if not st.session_state["chat_started"]:
 
     st.markdown("""
     ### What can I do?
-    I'm powered by **5 amazing tools** that let me:
+    I'm powered by **4 amazing tools** that let me:
 
     1. **📈 Stock Price** - Get real-time stock quotes and fundamentals
     2. **🕐 India Time** - Tell you the current date & time in India (IST)
     3. **🧮 Calculator** - Solve complex math with BODMAS & trigonometry
     4. **🔍 Web Search** - Search the web for latest information
-    5. **📱 Telegram Alert** - Send messages directly to your Telegram
 
     ### Try asking me:
     - "What's the current price of Apple stock?"
     - "What time is it in India?"
     - "Calculate sin(pi/2) + sqrt(16)"
     - "Search for latest AI news"
-    - "Send a message to Telegram: Task completed"
 
     """)
 
