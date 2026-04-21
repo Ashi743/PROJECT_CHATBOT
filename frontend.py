@@ -4,15 +4,32 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from uuid import uuid4
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Chat Bot",
+    page_icon="💬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+## Available Tools Info
+AVAILABLE_TOOLS = {
+    "Stock Price": "Get real-time stock prices (yfinance)",
+    "India Time": "Current date & time in India (IST)",
+    "Calculator": "Math with BODMAS & trigonometry",
+    "Web Search": "Real-time web search (DuckDuckGo)"
+}
 
 ## ----------------- utility functions for thread management -----------------
+
+
 def new_thread_id():
     return str(uuid4())
 
 def load_thread_messages(thread_id):
-    config = RunnableConfig(configurable={"thread_id": thread_id})
-    state = chatbot.get_state(config)
+
+    CONFIG = RunnableConfig(configurable={"thread_id": thread_id})
+
+    state = chatbot.get_state(config=CONFIG)
     if state and state.values.get("messages"):
         messages = []
         for msg in state.values["messages"]:
@@ -63,7 +80,16 @@ if "message_history" not in st.session_state:
 
 ## ------------------- Streamlit UI ---------------------
 with st.sidebar:
-    st.title("My Conversations")
+    st.title("💬 Chat Bot")
+
+    # Show available tools
+    st.subheader("📚 Available Tools")
+    with st.expander("View Tools (4 available)", expanded=False):
+        for tool_name, tool_desc in AVAILABLE_TOOLS.items():
+            st.caption(f"**{tool_name}**: {tool_desc}")
+
+    st.divider()
+    st.subheader("My Conversations")
 
     if not st.session_state["chat_started"]:
         if st.button("--START CHAT--", key="start_chat"):
@@ -118,35 +144,56 @@ with st.sidebar:
                         st.session_state[f"rename_mode_{thread['id']}"] = False
                         st.rerun()
 
+## ------------------- Initialize chatbot and database ---------------------
+
+
 if not st.session_state["chat_started"]:
-    st.markdown("# Welcome to Chat App!")
+    st.markdown("# 🤖 Welcome to Your AI Chat Bot!")
+
+    st.markdown("""
+    ### What can I do?
+    I'm powered by **4 amazing tools** that let me:
+
+    1. **📈 Stock Price** - Get real-time stock quotes and fundamentals
+    2. **🕐 India Time** - Tell you the current date & time in India (IST)
+    3. **🧮 Calculator** - Solve complex math with BODMAS & trigonometry
+    4. **🔍 Web Search** - Search the web for latest information
+
+    ### Try asking me:
+    - "What's the current price of Apple stock?"
+    - "What time is it in India?"
+    - "Calculate sin(pi/2) + sqrt(16)"
+    - "Search for latest AI news"
+
+    """)
+
     st.info("<-- Click **START CHAT** in the sidebar to begin")
 else:
     st.title("Chat")
 
     for messages in st.session_state["message_history"]:
         with st.chat_message(messages['role']):
-            st.text(messages['content'])
+            st.markdown(messages['content'])
 
     user_input = st.chat_input("type here")
 
     if user_input:
         st.session_state["message_history"].append({'role': 'user', 'content': user_input})
         with st.chat_message("user"):
-            st.text(user_input)
+            st.markdown(user_input)
 
         # Update thread label on first user message
         current_thread = next((t for t in st.session_state["threads"] if t["id"] == st.session_state["current_thread_id"]), None)
         if current_thread and current_thread["label"].startswith("Chat "):
             update_thread_label(st.session_state["current_thread_id"], user_input)
 
-        config = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
+        CONFIG = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
 
         def response_generator():
             full_response = ""
             for message_chunk, metadata in chatbot.stream(
                 {'messages': [HumanMessage(content=user_input)]},
-                config=config,
+                config=CONFIG,
                 stream_mode="messages"):
                 if isinstance(message_chunk, str):
                     full_response += message_chunk

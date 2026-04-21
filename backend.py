@@ -1,6 +1,6 @@
 from langchain.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, ToolMessage, AIMessage
 
 from langgraph.graph import StateGraph, START ,END
 from langgraph.graph.message import add_messages
@@ -10,10 +10,16 @@ import sqlite3
 from typing import TypedDict ,Annotated
 from dotenv import load_dotenv
 
+from tools.stock_tool import get_stock_price
+from tools.india_time_tool import get_india_time
+from tools.calculator_tool import calculator
+from tools.web_search_tool import web_search
 
 load_dotenv()
 
 llm_model= ChatOpenAI()
+tools = [get_stock_price, get_india_time, calculator, web_search]
+llm_with_tools = llm_model.bind_tools(tools)
 
 class chatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
@@ -21,8 +27,47 @@ class chatState(TypedDict):
 
 def chat_node(state:chatState):
     message= state["messages"]
-    response =llm_model.invoke(message)
+    response = llm_with_tools.invoke(message)
     return {'messages': [response]}
+
+def tool_node(state:chatState):
+    """Execute tool calls from the LLM"""
+    messages = state["messages"]
+    last_message = messages[-1]
+
+    tool_calls = last_message.tool_calls if isinstance(last_message, AIMessage) else []
+    results = []
+
+    # Create a tool map for easy lookup
+    tool_map = {tool.name: tool for tool in tools}
+
+    for tool_call in tool_calls:
+        tool_name = tool_call["name"]
+        tool_input = tool_call["args"]
+
+        try:
+            if tool_name in tool_map:
+                # Some tools don't take arguments
+                if tool_input:
+                    result = tool_map[tool_name].invoke(tool_input)
+                else:
+                    result = tool_map[tool_name].invoke({})
+            else:
+                result = f"Unknown tool: {tool_name}"
+        except Exception as e:
+            result = f"Error executing {tool_name}: {str(e)}"
+
+        results.append(ToolMessage(content=result, tool_call_id=tool_call["id"]))
+
+    return {"messages": results}
+
+def should_use_tools(state:chatState):
+    """Decide whether to continue to tool execution or end"""
+    messages = state["messages"]
+    last_message = messages[-1]
+    if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        return "tools"
+    return END
 
 
 ## -------------------- MEMORY CHECKPOINTING --------------------
@@ -45,8 +90,10 @@ conn.commit()
 
 graph= StateGraph(chatState)
 graph.add_node("chat_node", chat_node)
+graph.add_node("tools", tool_node)
 graph.add_edge(START, "chat_node")
-graph.add_edge("chat_node", END)
+graph.add_conditional_edges("chat_node", should_use_tools, {"tools": "tools", END: END})
+graph.add_edge("tools", "chat_node")
 
 chatbot = graph.compile(checkpointer=checkpointer)
 
