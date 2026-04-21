@@ -13,16 +13,16 @@ pip install -r requirements.txt
 Create a `.env` file with:
 ```
 OPENAI_API_KEY=your_openai_key_here
-CALENDARIFIC_API_KEY=your_api_key_here  (optional, for holidays)
-HOLIDAY_COUNTRY=IN                       (optional, defaults to IN)
+TELEGRAM_BOT_TOKEN=your_bot_token      (optional, for Telegram alerts)
+TELEGRAM_CHAT_ID=your_chat_id          (optional, for Telegram alerts)
 ```
 
 **Required Keys:**
 - `OPENAI_API_KEY` - Get from OpenAI (required)
 
-**Optional Keys (Free Tier Available):**
-- `CALENDARIFIC_API_KEY` - Get free key from https://calendarific.com/ (100 requests/month)
-- `HOLIDAY_COUNTRY` - Holiday country code (defaults to IN for India)
+**Optional Keys:**
+- `TELEGRAM_BOT_TOKEN` - Get from @BotFather on Telegram
+- `TELEGRAM_CHAT_ID` - Your personal Telegram user ID
 
 **Run the chatbot:**
 ```bash
@@ -60,12 +60,6 @@ The backend uses **LangGraph StateGraph** to manage conversation flow with tool 
   - Functions: sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, sqrt, log, log10, exp, abs, ceil, floor, pow
   - Constants: pi, e
   - Returns: Calculated result
-
-- **get_holidays**: Fetch public holidays using Calendarific API (requires free API key)
-  - Input: Optional query (empty defaults to today, or specify year/month, or "list all")
-  - Supports: 2000+ holidays for countries worldwide
-  - Returns: Today's holidays, upcoming holidays, full year/month list, plus "On This Day" Wikipedia facts
-  - API Key: Get free key at https://calendarific.com/ (100 requests/month)
 
 - **web_search**: Search the web in real-time using DuckDuckGo (free, no API key required)
   - Input: Search query (e.g., "latest AI news", "climate change 2026")
