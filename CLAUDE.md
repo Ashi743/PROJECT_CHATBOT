@@ -12,8 +12,19 @@ pip install -r requirements.txt
 **Environment Setup:**
 Create a `.env` file with:
 ```
-OPENAI_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_openai_key_here
+TAVILY_API_KEY=your_api_key_here        (optional, for web search)
+CALENDARIFIC_API_KEY=your_api_key_here  (optional, for holidays)
+HOLIDAY_COUNTRY=IN                       (optional, defaults to IN)
 ```
+
+**Required Keys:**
+- `OPENAI_API_KEY` - Get from OpenAI (required)
+
+**Optional Keys (Free Tier Available):**
+- `TAVILY_API_KEY` - Get free key from https://tavily.com/ (unlimited searches)
+- `CALENDARIFIC_API_KEY` - Get free key from https://calendarific.com/ (100 requests/month)
+- `HOLIDAY_COUNTRY` - Holiday country code (defaults to IN for India)
 
 **Run the chatbot:**
 ```bash
@@ -28,17 +39,54 @@ The project is a stateful conversational chatbot with a **graph-based backend** 
 
 ### Backend Architecture (`backend.py`)
 
-The backend uses **LangGraph StateGraph** to manage conversation flow:
+The backend uses **LangGraph StateGraph** to manage conversation flow with tool integration:
 
 - **ChatState**: TypedDict defining the conversation state with `messages` (Annotated list using `add_messages` reducer)
-- **chat_node**: Single processing node that invokes the LLM with accumulated message history
-- **Checkpointer**: Currently uses `InMemorySaver` for session-only storage; planned migration to `SqliteSaver`
-- **Graph**: Linear flow (START → chat_node → END) compiled with checkpointing support
+- **chat_node**: Processing node that invokes the LLM with accumulated message history
+- **tool_node**: Execution node that handles tool calls (stock prices, holidays)
+- **Graph Flow**: START → chat_node → [conditional: tools or END] → chat_node (loops for multi-turn tool use)
+- **Checkpointer**: Uses `SqliteSaver` for persistent conversation storage across sessions
+
+**Available Tools:**
+- **get_stock_price**: Fetch current stock prices and fundamentals using yfinance (free, no API key required)
+  - Input: Stock ticker symbol (e.g., "AAPL", "TSLA", "GOOGL", "RELIANCE.BO")
+  - Returns: Price, change %, OHLC, volume, market cap, P/E ratio, 52-week high/low
+  
+- **get_india_time**: Get current date and time in India (IST - Indian Standard Time)
+  - Input: None
+  - Returns: Current date, time, and timezone
+  
+- **calculator**: Advanced mathematical expression evaluator with BODMAS and trigonometry
+  - Input: Mathematical expression (e.g., "2 + 3 * 4", "sin(pi/2)", "sqrt(16)")
+  - Supports: Basic arithmetic (+, -, *, /, %, **), parentheses, BODMAS/PEMDAS
+  - Functions: sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, sqrt, log, log10, exp, abs, ceil, floor, pow
+  - Constants: pi, e
+  - Returns: Calculated result
+
+- **get_holidays**: Fetch public holidays using Calendarific API (requires free API key)
+  - Input: Optional query (empty defaults to today, or specify year/month, or "list all")
+  - Supports: 2000+ holidays for countries worldwide
+  - Returns: Today's holidays, upcoming holidays, full year/month list, plus "On This Day" Wikipedia facts
+  - API Key: Get free key at https://calendarific.com/ (100 requests/month)
+
+- **web_search**: Search the web in real-time using Tavily API (free, unlimited searches)
+  - Input: Search query (e.g., "latest AI news", "climate change 2026")
+  - Options: number of results (1-10), search depth (basic/advanced)
+  - Returns: Search results with titles, URLs, summaries, and AI-generated answers
+  - API Key: Get free key at https://tavily.com/
+
+- **send_telegram_alert**: Send alerts/messages to Telegram
+  - Input: Message text and alert type (info/success/warning/error/critical)
+  - Returns: Confirmation that message was sent to Telegram
+  - Setup: Get bot token from @BotFather, add to .env
+  - Examples: "Alert: Task completed", "Send critical alert: System error"
 
 **Key Design Pattern:**
 - Messages reducer (`add_messages`) automatically merges new messages into state history
 - Thread-based conversation management via `RunnableConfig` with `thread_id` parameter
-- Streaming support: Backend graph can stream individual message chunks
+- Tool binding: LLM decides when to call tools based on user queries
+- Tool results passed back to LLM for context-aware responses
+- Persistent storage of all conversation history with SqliteSaver
 
 ### Frontend Architecture (`frontend.py`)
 
@@ -58,7 +106,39 @@ Streamlit-based UI with session management:
 - `load_thread_messages()`: Fetch conversation history from checkpointer
 - `switch_to_thread()`: Switch active conversation and reload history
 
+## Tools Directory Structure
+
+```
+tools/
+├── stock_tool.py              # Stock price fetching tool (yfinance)
+├── india_time_tool.py         # India time and date tool (zoneinfo)
+├── calculator_tool.py         # Advanced calculator with BODMAS & trigonometry
+├── calender_tool.py           # Holidays and calendar tool (Calendarific API)
+├── web_search_tool.py         # Web search tool (Tavily API)
+└── telegram_alert_tool.py     # Telegram alerts/notifications (BotFather)
+
+tool_testing/
+├── test_stock.py              # Stock tool test suite
+├── test_india_time.py         # India time tool test suite
+├── test_calculator.py         # Calculator tool test suite
+├── test_calender_calendarific.py  # Calendar tool test suite (Calendarific)
+├── test_web_search.py         # Web search tool test suite (Tavily)
+└── test_telegram_alert.py     # Telegram alert tool test suite
+```
+
+Run tests from the root directory:
+```bash
+cd tool_testing
+python test_stock.py
+python test_calender.py
+```
+
 ## Development Notes
+
+### Adding New Tools
+1. Create new tool in `tools/` directory using `@tool` decorator from `langchain_core.tools`
+2. Add tool to the `tools` list in `backend.py` (line ~19)
+3. Tool will automatically be available to the LLM once bound
 
 ### Adding New Nodes
 To extend the graph with additional processing:

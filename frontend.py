@@ -4,7 +4,22 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from uuid import uuid4
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="Chat Bot",
+    page_icon="💬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+## Available Tools Info
+AVAILABLE_TOOLS = {
+    "Stock Price": "Get real-time stock prices (yfinance)",
+    "India Time": "Current date & time in India (IST)",
+    "Calculator": "Math with BODMAS & trigonometry",
+    "Holidays": "Public holidays calendar (Calendarific)",
+    "Web Search": "Real-time web search (Tavily)",
+    "Telegram Alert": "Send alerts to Telegram (BotFather)"
+}
 
 ## ----------------- utility functions for thread management -----------------
 
@@ -67,7 +82,16 @@ if "message_history" not in st.session_state:
 
 ## ------------------- Streamlit UI ---------------------
 with st.sidebar:
-    st.title("My Conversations")
+    st.title("💬 Chat Bot")
+
+    # Show available tools
+    st.subheader("📚 Available Tools")
+    with st.expander("View Tools (6 available)", expanded=False):
+        for tool_name, tool_desc in AVAILABLE_TOOLS.items():
+            st.caption(f"**{tool_name}**: {tool_desc}")
+
+    st.divider()
+    st.subheader("My Conversations")
 
     if not st.session_state["chat_started"]:
         if st.button("--START CHAT--", key="start_chat"):
@@ -126,21 +150,43 @@ with st.sidebar:
 
 
 if not st.session_state["chat_started"]:
-    st.markdown("# Welcome to Chat App!")
+    st.markdown("# 🤖 Welcome to Your AI Chat Bot!")
+
+    st.markdown("""
+    ### What can I do?
+    I'm powered by **6 amazing tools** that let me:
+
+    1. **📈 Stock Price** - Get real-time stock quotes and fundamentals
+    2. **🕐 India Time** - Tell you the current date & time in India (IST)
+    3. **🧮 Calculator** - Solve complex math with BODMAS & trigonometry
+    4. **📅 Holidays** - Show public holidays for 200+ countries
+    5. **🔍 Web Search** - Search the web for latest information
+    6. **📱 Telegram Alert** - Send messages directly to your Telegram
+
+    ### Try asking me:
+    - "What's the current price of Apple stock?"
+    - "What time is it in India?"
+    - "Calculate sin(pi/2) + sqrt(16)"
+    - "What holidays are coming up?"
+    - "Search for latest AI news"
+    - "Send a message to Telegram: Task completed"
+
+    """)
+
     st.info("<-- Click **START CHAT** in the sidebar to begin")
 else:
     st.title("Chat")
 
     for messages in st.session_state["message_history"]:
         with st.chat_message(messages['role']):
-            st.text(messages['content'])
+            st.markdown(messages['content'])
 
     user_input = st.chat_input("type here")
 
     if user_input:
         st.session_state["message_history"].append({'role': 'user', 'content': user_input})
         with st.chat_message("user"):
-            st.text(user_input)
+            st.markdown(user_input)
 
         # Update thread label on first user message
         current_thread = next((t for t in st.session_state["threads"] if t["id"] == st.session_state["current_thread_id"]), None)

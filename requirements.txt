@@ -13,3 +13,4 @@ typing-extensions>=4.0.0
 langgraph-checkpoint>=1.0.0
 langgraph-checkpoint-sqlite>=2.0.11
 streamlit>=1.50.0
+yfinance>=0.2.0
