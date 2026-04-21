@@ -1,5 +1,5 @@
 import streamlit as st
-from backend import chatbot, retrieve_thread
+from backend import chatbot, retrieve_thread, save_thread_label
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from uuid import uuid4
@@ -27,6 +27,24 @@ def switch_to_thread(thread_id):
     st.session_state["current_thread_id"] = thread_id
     st.session_state["message_history"] = load_thread_messages(thread_id)
     st.session_state["chat_started"] = True
+
+def extract_first_5_words(text: str) -> str:
+    """Extract first 5 words from text and create a label"""
+    words = text.split()[:5]
+    label = " ".join(words)
+    if len(text.split()) > 5:
+        label += "..."
+    return label
+
+def update_thread_label(thread_id: str, user_input: str):
+    """Update thread label based on user input"""
+    label = extract_first_5_words(user_input)
+    save_thread_label(thread_id, label)
+    # Update the label in session state
+    for thread in st.session_state["threads"]:
+        if thread["id"] == thread_id:
+            thread["label"] = label
+            break
 
 ##-------------------Session setup ------------------------------------
 
@@ -85,6 +103,11 @@ else:
         st.session_state["message_history"].append({'role': 'user', 'content': user_input})
         with st.chat_message("user"):
             st.text(user_input)
+
+        # Update thread label on first user message
+        current_thread = next((t for t in st.session_state["threads"] if t["id"] == st.session_state["current_thread_id"]), None)
+        if current_thread and current_thread["label"].startswith("Chat "):
+            update_thread_label(st.session_state["current_thread_id"], user_input)
 
         config = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
 
