@@ -1,5 +1,5 @@
 import streamlit as st
-from backend import chatbot
+from backend import chatbot, retrieve_thread
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from uuid import uuid4
@@ -32,12 +32,16 @@ def switch_to_thread(thread_id):
 
 if "chat_started" not in st.session_state:
     st.session_state["chat_started"] = False
+
 if "current_thread_id" not in st.session_state:
     st.session_state["current_thread_id"] = None
+
 if "threads" not in st.session_state:
-    st.session_state["threads"] = []
+    st.session_state["threads"] =  retrieve_thread()   #unique list of threads 
+
 if "message_history" not in st.session_state:
     st.session_state["message_history"] = []
+
 
 ## ------------------- Streamlit UI ---------------------
 with st.sidebar:
@@ -83,14 +87,21 @@ else:
             st.text(user_input)
 
         config = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
-        
-        with st.chat_message("assistant"):
-            ai_message = st.write_stream(
-                message_chunk for message_chunk, metadata in chatbot.stream(
-                    {'messages': [HumanMessage(content=user_input)]},
-                    config=config,
-                    stream_mode="messages")
-            )
 
-        st.session_state["message_history"].append({'role': 'assistant', 'content': ai_message})
+        def response_generator():
+            full_response = ""
+            for message_chunk, metadata in chatbot.stream(
+                {'messages': [HumanMessage(content=user_input)]},
+                config=config,
+                stream_mode="messages"):
+                if isinstance(message_chunk, str):
+                    full_response += message_chunk
+                    yield message_chunk
+                elif hasattr(message_chunk, 'content'):
+                    full_response += message_chunk.content
+                    yield message_chunk.content
+            st.session_state["message_history"].append({'role': 'assistant', 'content': full_response})
+
+        with st.chat_message("assistant"):
+            st.write_stream(response_generator())
          
