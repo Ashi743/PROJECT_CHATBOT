@@ -28,6 +28,7 @@ def chat_node(state:chatState):
 ## -------------------- MEMORY CHECKPOINTING --------------------
 conn= sqlite3.connect(database= "chat_memory.db", check_same_thread=False)
 checkpointer= SqliteSaver(conn)
+checkpointer.setup()  # Initialize database schema
 ## --------------------------------------------------------------
 
 
@@ -36,4 +37,14 @@ graph.add_node("chat_node", chat_node)
 graph.add_edge(START, "chat_node")
 graph.add_edge("chat_node", END)
 
-chatbot =graph.compile(checkpointer=checkpointer)
+chatbot = graph.compile(checkpointer=checkpointer)
+
+#----------------- utility functions for thread management -----------------
+def retrieve_thread():
+    all_threads = set()
+    for checkpoint in checkpointer.list(None):
+        if checkpoint.config and 'configurable' in checkpoint.config:
+            all_threads.add(checkpoint.config['configurable']["thread_id"])
+
+    threads = [{"id": tid, "label": f"Chat {i+1}"} for i, tid in enumerate(sorted(all_threads))]
+    return threads
