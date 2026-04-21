@@ -13,7 +13,6 @@ pip install -r requirements.txt
 Create a `.env` file with:
 ```
 OPENAI_API_KEY=your_openai_key_here
-TAVILY_API_KEY=your_api_key_here        (optional, for web search)
 CALENDARIFIC_API_KEY=your_api_key_here  (optional, for holidays)
 HOLIDAY_COUNTRY=IN                       (optional, defaults to IN)
 ```
@@ -22,7 +21,6 @@ HOLIDAY_COUNTRY=IN                       (optional, defaults to IN)
 - `OPENAI_API_KEY` - Get from OpenAI (required)
 
 **Optional Keys (Free Tier Available):**
-- `TAVILY_API_KEY` - Get free key from https://tavily.com/ (unlimited searches)
 - `CALENDARIFIC_API_KEY` - Get free key from https://calendarific.com/ (100 requests/month)
 - `HOLIDAY_COUNTRY` - Holiday country code (defaults to IN for India)
 
@@ -69,11 +67,11 @@ The backend uses **LangGraph StateGraph** to manage conversation flow with tool 
   - Returns: Today's holidays, upcoming holidays, full year/month list, plus "On This Day" Wikipedia facts
   - API Key: Get free key at https://calendarific.com/ (100 requests/month)
 
-- **web_search**: Search the web in real-time using Tavily API (free, unlimited searches)
+- **web_search**: Search the web in real-time using DuckDuckGo (free, no API key required)
   - Input: Search query (e.g., "latest AI news", "climate change 2026")
-  - Options: number of results (1-10), search depth (basic/advanced)
-  - Returns: Search results with titles, URLs, summaries, and AI-generated answers
-  - API Key: Get free key at https://tavily.com/
+  - Options: number of results (1-10)
+  - Returns: Search results with titles, URLs, and summaries
+  - No API key needed - completely free and anonymous
 
 - **send_telegram_alert**: Send alerts/messages to Telegram
   - Input: Message text and alert type (info/success/warning/error/critical)
