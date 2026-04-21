@@ -37,7 +37,7 @@ cursor.execute("""
     CREATE TABLE IF NOT EXISTS thread_metadata (
         thread_id TEXT PRIMARY KEY,
         label TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
     )
 """)
 conn.commit()
@@ -80,3 +80,17 @@ def retrieve_thread():
             label = f"Chat {i+1}"
         threads.append({"id": tid, "label": label})
     return threads
+
+def delete_thread(thread_id: str):
+    """Delete a thread and its metadata from the database"""
+    cursor = conn.cursor()
+    # Delete from thread_metadata
+    cursor.execute("DELETE FROM thread_metadata WHERE thread_id = ?", (thread_id,))
+    # Delete all checkpoints for this thread (SqliteSaver uses 'checkpoints' and 'writes' tables)
+    cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+    cursor.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
+    conn.commit()
+
+def rename_thread(thread_id: str, new_label: str):
+    """Rename a thread by updating its label"""
+    save_thread_label(thread_id, new_label)
