@@ -7,12 +7,16 @@ from uuid import uuid4
 st.set_page_config(layout="wide")
 
 ## ----------------- utility functions for thread management -----------------
+
+
 def new_thread_id():
     return str(uuid4())
 
 def load_thread_messages(thread_id):
-    config = RunnableConfig(configurable={"thread_id": thread_id})
-    state = chatbot.get_state(config)
+
+    CONFIG = RunnableConfig(configurable={"thread_id": thread_id})
+
+    state = chatbot.get_state(config=CONFIG)
     if state and state.values.get("messages"):
         messages = []
         for msg in state.values["messages"]:
@@ -118,6 +122,9 @@ with st.sidebar:
                         st.session_state[f"rename_mode_{thread['id']}"] = False
                         st.rerun()
 
+## ------------------- Initialize chatbot and database ---------------------
+
+
 if not st.session_state["chat_started"]:
     st.markdown("# Welcome to Chat App!")
     st.info("<-- Click **START CHAT** in the sidebar to begin")
@@ -140,13 +147,13 @@ else:
         if current_thread and current_thread["label"].startswith("Chat "):
             update_thread_label(st.session_state["current_thread_id"], user_input)
 
-        config = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
+        CONFIG = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
 
         def response_generator():
             full_response = ""
             for message_chunk, metadata in chatbot.stream(
                 {'messages': [HumanMessage(content=user_input)]},
-                config=config,
+                config=CONFIG,
                 stream_mode="messages"):
                 if isinstance(message_chunk, str):
                     full_response += message_chunk
