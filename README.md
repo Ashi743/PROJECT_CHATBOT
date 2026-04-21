@@ -1,3 +1,4 @@
+<img width="1280" height="734" alt="chatbot_stream" src="https://github.com/user-attachments/assets/456399ce-0821-4063-bfb2-ab7f742c814d" />
 # LangGraph Conversational Chatbot
 
 > A stateful, multi-turn chatbot with real-time streaming, thread management, and persistent conversation history — built with LangChain, LangGraph, and OpenAI.
