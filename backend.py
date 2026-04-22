@@ -19,6 +19,7 @@ from tools.sql_analysis_tool import analyze_sql
 from tools.nlp_tool import nlp_analyze
 from tools.commodity_tool import get_commodity_price
 from tools.monitor_tool import start_monitoring, stop_monitoring, get_monitoring_results, get_active_monitors
+from tools.slack_alert_tool import slack_notify
 from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
@@ -27,11 +28,11 @@ load_dotenv()
 llm_model = ChatOpenAI(model="gpt-4o-mini")  # Main chatbot (cost-effective)
 analysis_llm = ChatOpenAI(model="gpt-4o")    # Heavy analysis interpretation (high-quality)
 
-# Combine base tools with Gmail tools, data analysis tools, NLP and monitoring tools
+# Combine base tools with Gmail tools, data analysis tools, NLP, monitoring, and alerting tools
 base_tools = [
     get_stock_price, get_india_time, calculator, web_search, analyze_data, analyze_sql,
     nlp_analyze, get_commodity_price, start_monitoring, stop_monitoring,
-    get_monitoring_results, get_active_monitors
+    get_monitoring_results, get_active_monitors, slack_notify
 ]
 all_tools = base_tools + gmail_tools
 tools = all_tools

@@ -17,8 +17,9 @@ _monitoring_results = {}
 
 def _send_alert(message: str, callback: Optional[Callable] = None):
     """
-    Send alert via callback or log it.
-    Can be extended to send via Telegram, email, etc.
+    Send alert via callback, Slack, or log it.
+    Default: Send to Slack webhook (if configured)
+    Optional callback: Custom handler (email, sms, etc.)
     """
     if callback:
         try:
@@ -26,7 +27,21 @@ def _send_alert(message: str, callback: Optional[Callable] = None):
         except Exception as e:
             logger.error(f"Alert callback error: {e}")
     else:
-        logger.warning(f"ALERT: {message}")
+        # Default: Send to Slack
+        try:
+            from tools.slack_alert_tool import send_slack_alert
+            result = send_slack_alert(
+                message,
+                title="Commodity Alert",
+                severity="alert"
+            )
+            if result["status"] == "ok":
+                logger.info("Alert sent to Slack")
+            else:
+                logger.warning(f"Slack alert failed: {result['message']}")
+        except ImportError:
+            # Slack tool not available, fall back to logging
+            logger.warning(f"ALERT: {message}")
 
 
 def _log_to_storage(commodity: str, result: dict, storage_callback: Optional[Callable] = None):
