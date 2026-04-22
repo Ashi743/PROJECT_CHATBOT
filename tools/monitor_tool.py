@@ -50,7 +50,7 @@ def _run_monitoring(
     interval_seconds: int,
     alert_callback: Optional[Callable] = None,
     storage_callback: Optional[Callable] = None,
-    stop_event: threading.Event = None
+    stop_event: Optional[threading.Event] = None
 ):
     """
     Run the monitoring loop for a single commodity.
@@ -142,9 +142,7 @@ def _run_monitoring(
 @tool
 def start_monitoring(
     commodity: str,
-    interval_minutes: int = 30,
-    alert_callback: Optional[Callable] = None,
-    storage_callback: Optional[Callable] = None
+    interval_minutes: int = 30
 ) -> str:
     """
     Start real-time monitoring for a commodity.
@@ -153,11 +151,9 @@ def start_monitoring(
     Args:
         commodity: Commodity name (wheat, soy, corn, sugar, cotton, rice)
         interval_minutes: Check interval in minutes (default: 30)
-        alert_callback: Optional callback function for sending alerts
-        storage_callback: Optional callback for custom storage
 
     Returns:
-        Status message
+        Status message confirming monitoring has started
     """
     commodity_lower = commodity.lower().strip()
 
@@ -171,7 +167,7 @@ def start_monitoring(
         # Create and start thread
         thread = threading.Thread(
             target=_run_monitoring,
-            args=(commodity_lower, interval_minutes * 60, alert_callback, storage_callback, stop_event),
+            args=(commodity_lower, interval_minutes * 60, None, None, stop_event),
             daemon=True,
             name=f"monitor-{commodity_lower}"
         )
@@ -211,7 +207,7 @@ def stop_monitoring(commodity: str) -> str:
 
 
 @tool
-def get_monitoring_results(commodity: str = None) -> str:
+def get_monitoring_results(commodity: Optional[str] = None) -> str:
     """
     Get stored monitoring results for a commodity or all commodities.
 
