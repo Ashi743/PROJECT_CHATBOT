@@ -5,6 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from uuid import uuid4
 from pathlib import Path
 from tools.csv_ingest_tool import save_and_prepare_file, ingest_file_to_rag, list_datasets, get_dataset_info, update_dataset_description, delete_dataset
+from tools.sql_file_ingest_tool import ingest_sql_file, get_database_list, get_database_schema, delete_database
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -17,8 +18,8 @@ st.set_page_config(
 AVAILABLE_TOOLS = {
     "Stock Price": "Get real-time stock prices (yfinance)",
     "Commodity Price": "Get wheat, soy, corn, sugar prices",
-    "India Time": "Current date & time in India (IST)",
-    "Calculator": "Math with BODMAS & trigonometry",
+    "India Time": "Current date and time in India (IST)",
+    "Calculator": "Math with BODMAS and trigonometry",
     "Web Search": "Real-time web search (DuckDuckGo)",
     "NLP Analysis": "Sentiment, keywords, summary, NER analysis",
     "Commodity Monitor": "Start/stop real-time monitoring with alerts",
@@ -28,7 +29,10 @@ AVAILABLE_TOOLS = {
     "Get Email": "Fetch email details by ID",
     "Get Thread": "Get email conversations",
     "Analyze Data": "Analyze CSV/Excel data with pandas",
-    "Analyze SQL": "Query SQLite database with SQL"
+    "Analyze SQL": "Query SQLite database with SQL",
+    "Upload SQL Files": "Create databases from .sql files (CREATE TABLE + INSERT)",
+    "List Databases": "See all uploaded SQL databases",
+    "Query Database": "Run SELECT queries on any uploaded database"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -302,6 +306,97 @@ with st.sidebar:
                             if st.button("Cancel", key=f"confirm_delete_dataset_no_{ds}"):
                                 st.session_state[f"confirm_delete_dataset_{ds}"] = False
                                 st.rerun()
+
+    st.divider()
+    st.subheader("SQL Databases")
+
+    with st.expander("Upload SQL File", expanded=False):
+        uploaded_sql_file = st.file_uploader(
+            "Choose a .sql file",
+            type=["sql"],
+            key="sql_uploader"
+        )
+
+        if uploaded_sql_file is not None:
+            if st.button("Upload SQL File", key="upload_sql_btn"):
+                with st.spinner("Processing SQL file..."):
+                    result = ingest_sql_file(
+                        file_bytes=uploaded_sql_file.getvalue(),
+                        file_name=uploaded_sql_file.name
+                    )
+
+                    if result["status"] == "ok":
+                        st.success(f"[OK] {result['message']}")
+                        st.info(f"Tables created: {', '.join(result['tables']) if result['tables'] else 'None'}")
+                        if result.get('warnings'):
+                            st.warning(f"[WARNING] {len(result['warnings'])} statement(s) had issues")
+                        st.rerun()
+                    else:
+                        st.error(f"[ERROR] {result['message']}")
+
+    # Show available databases
+    databases = get_database_list()
+    if databases:
+        st.subheader("Available Databases")
+        for db_name in sorted(databases.keys()):
+            db_info = databases[db_name]
+            is_confirming_delete = st.session_state.get(f"confirm_delete_db_{db_name}", False)
+
+            with st.expander(f"[DB] {db_name}", expanded=is_confirming_delete):
+                # Show metadata
+                created_date = db_info.get('created_at', 'N/A')[:10]
+                table_count = len(db_info.get('tables', []))
+                st.caption(f"**Created:** {created_date} | **Tables:** {table_count}")
+
+                if db_info.get('tables'):
+                    st.caption(f"**Tables:** {', '.join(db_info['tables'])}")
+
+                # Get and show schema
+                schema = get_database_schema(db_name)
+                if "error" not in schema:
+                    with st.expander("View Schema", expanded=False):
+                        for table_name, table_info in schema.get('tables', {}).items():
+                            st.markdown(f"**{table_name}** ({table_info['row_count']} rows)")
+                            col_names = [col['name'] for col in table_info['columns']]
+                            col_types = [col['type'] for col in table_info['columns']]
+                            st.caption(", ".join([f"{n}: {t}" for n, t in zip(col_names, col_types)]))
+
+                # AI-suggested queries
+                with st.expander("Sample Queries", expanded=False):
+                    st.markdown("**Sample queries you can ask the AI to run:**")
+                    tables = db_info.get('tables', [])
+                    if tables:
+                        primary_table = tables[0]
+                        st.code(f"SELECT * FROM {primary_table} LIMIT 5", language="sql")
+                        st.code(f"SELECT COUNT(*) FROM {primary_table}", language="sql")
+                        if len(tables) > 1:
+                            st.code(f"SELECT * FROM {primary_table} JOIN {tables[1]} ON ...", language="sql")
+                        st.caption("[TIP] Use these in your chat: 'Run this query against the {database_name}' or 'Show me all data from {table_name}'")
+
+                # Delete button
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Delete Database", key=f"delete_db_{db_name}"):
+                        st.session_state[f"confirm_delete_db_{db_name}"] = True
+                        st.rerun()
+
+                # HITL Confirmation for database deletion
+                if st.session_state.get(f"confirm_delete_db_{db_name}", False):
+                    st.warning(f"[CONFIRM] Are you sure you want to delete '{db_name}'? This cannot be undone.")
+                    col_confirm, col_cancel = st.columns(2)
+                    with col_confirm:
+                        if st.button("Yes, Delete", key=f"confirm_delete_db_yes_{db_name}", type="primary"):
+                            delete_result = delete_database(db_name)
+                            if delete_result["status"] == "ok":
+                                st.success("Database deleted")
+                                st.session_state[f"confirm_delete_db_{db_name}"] = False
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {delete_result['message']}")
+                    with col_cancel:
+                        if st.button("Cancel", key=f"confirm_delete_db_no_{db_name}"):
+                            st.session_state[f"confirm_delete_db_{db_name}"] = False
+                            st.rerun()
 
     st.divider()
     st.subheader("My Conversations")

@@ -9,9 +9,18 @@ DB_DIR = Path(__file__).parent.parent / "data" / "databases"
 DB_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DB_DIR / "analytics.db"
 
-def get_connection():
-    """Get SQLite database connection"""
-    conn = sqlite3.connect(str(DB_PATH))
+def get_connection(db_name: str = "analytics"):
+    """Get SQLite database connection
+
+    Args:
+        db_name: Database name without .db extension. Defaults to "analytics" for backward compatibility
+    """
+    if db_name == "analytics":
+        db_path = DB_PATH
+    else:
+        db_path = DB_DIR / f"{db_name}.db"
+
+    conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -93,7 +102,7 @@ def _initialize_sample_database():
 _initialize_sample_database()
 
 @tool
-def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: str = "") -> str:
+def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: str = "", db_name: str = "analytics") -> str:
     """
     Analyze SQL database using SQLite. The LLM uses this to query and manage data.
 
@@ -107,18 +116,23 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
             - 'list_tables' → List all tables in database
             - 'count' → Count rows in table (param: table_name)
             - 'sample' → Show sample rows (param: "table_name,N")
+            - 'list_databases' → List all uploaded databases
+            - 'get_schema' → Get full schema for a database (param: db_name)
+        db_name: Name of database to query (default: "analytics"). Use for uploaded SQL files.
+        table_name: Name of table
+        query: SQL query string
+        params: Additional parameters depending on query_type
 
     Returns:
         Formatted string result of the query
 
     Examples:
-        - analyze_sql(query_type='select', query='SELECT * FROM users WHERE country="USA"')
-        - analyze_sql(query_type='describe', table_name='orders')
-        - analyze_sql(query_type='count', table_name='users')
-        - analyze_sql(query_type='insert', table_name='users', params='username,email,country;new_user,new@example.com,India')
+        - analyze_sql(query_type='select', db_name='insurance', query='SELECT * FROM users')
+        - analyze_sql(query_type='list_databases')
+        - analyze_sql(query_type='get_schema', db_name='insurance')
     """
     try:
-        conn = get_connection()
+        conn = get_connection(db_name)
         cursor = conn.cursor()
 
         if query_type == 'select':
@@ -219,8 +233,40 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
             conn.commit()
             return f"Successfully deleted {cursor.rowcount} row(s) from '{table_name}'"
 
+        elif query_type == 'list_databases':
+            from tools.sql_file_ingest_tool import get_database_list
+            databases = get_database_list()
+            if not databases:
+                return "No databases found. Upload a SQL file to create one."
+            db_list = "Available Databases:\n"
+            for db_name_key, info in databases.items():
+                tables = info.get('tables', [])
+                created = info.get('created_at', 'N/A')[:10]
+                db_list += f"\n  [{db_name_key}]\n"
+                db_list += f"     Created: {created}\n"
+                db_list += f"     Tables: {', '.join(tables) if tables else 'None'}\n"
+            return db_list
+
+        elif query_type == 'get_schema':
+            if not params:
+                params = db_name
+            from tools.sql_file_ingest_tool import get_database_schema
+            schema = get_database_schema(params)
+            if "error" in schema:
+                return schema["error"]
+
+            schema_str = f"Schema for database '{params}':\n\n"
+            for table_name_key, table_info in schema.get('tables', {}).items():
+                schema_str += f"TABLE: {table_name_key} ({table_info['row_count']} rows)\n"
+                for col in table_info['columns']:
+                    pk_indicator = "[PK] " if col['primary_key'] else ""
+                    nullable = "" if col['notnull'] else "nullable"
+                    schema_str += f"   {pk_indicator}{col['name']}: {col['type']} {nullable}\n"
+                schema_str += "\n"
+            return schema_str
+
         else:
-            return f"Unknown operation: '{query_type}'. Valid: select, insert, update, delete, describe, list_tables, count, sample"
+            return f"Unknown operation: '{query_type}'. Valid: select, insert, update, delete, describe, list_tables, count, sample, list_databases, get_schema"
 
     except Exception as e:
         return f"Error executing SQL: {str(e)}"
