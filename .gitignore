@@ -61,3 +61,7 @@ data/plots/
 data/databases/
 data/metadata/
 chroma_db/
+
+# Monitoring state and logs
+data/monitoring_state.json
+monitoring_logs/
