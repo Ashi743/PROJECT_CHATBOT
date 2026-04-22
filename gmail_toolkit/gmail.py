@@ -19,12 +19,22 @@ else:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.abspath(fallback_path)
 
 # Initialize Gmail toolkit
+gmail_tools = []
 try:
+    # Change to gmail_toolkit directory to ensure credentials.json is found
+    original_cwd = os.getcwd()
+    os.chdir(GMAIL_TOOLKIT_DIR)
+
     toolkit = GmailToolkit()
     gmail_tools = toolkit.get_tools()
+
+    os.chdir(original_cwd)
 except Exception as e:
     print(f"Error initializing Gmail toolkit: {e}")
-    gmail_tools = []
+    try:
+        os.chdir(original_cwd)
+    except:
+        pass
 
 # Export tools individually for easy use
 if gmail_tools:

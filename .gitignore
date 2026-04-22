@@ -22,6 +22,7 @@ build/
 *.swo
 *~
 .DS_Store
+*.tmp.*
 
 # Environment variables
 .env
@@ -49,3 +50,10 @@ Thumbs.db
 # Gmail OAuth2 credentials (NEVER commit)
 gmail_toolkit/credentials.json
 gmail_toolkit/token.json
+
+# CSV/Data uploads, plots, and ChromaDB (NEVER commit)
+data/uploads/
+data/plots/
+data/databases/
+data/metadata/
+chroma_db/
