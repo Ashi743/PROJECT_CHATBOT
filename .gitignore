@@ -48,7 +48,8 @@ Thumbs.db
 .DS_Store
 
 # Project specific
-.claude/
+.claude/settings.local.json
+.claude/worktrees/
 
 # Gmail OAuth2 credentials (NEVER commit)
 gmail_toolkit/credentials.json

@@ -1,212 +1,87 @@
-# CLAUDE.md
+# Chatbot Project — Claude Code Context
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project Overview
+LangGraph agentic chatbot with Streamlit frontend.
+Multi-tool AI assistant with monitoring, analysis, and alerting.
 
-## Quick Start
+## Environment
+- Python 3.14, Windows machine
+- NO emojis in any tool output (Windows cp1252 encoding)
+- Use [OK] [ALERT] [DOWN] [WARN] [ERROR] [STALE] instead
 
-**Installation:**
-```bash
-pip install -r requirements.txt
-```
+## Tech Stack
+- LangGraph + SqliteSaver (checkpointer)
+- Streamlit frontend with streaming
+- OpenAI (ChatOpenAI)
+- ChromaDB (RAG)
+- MySQL (data analysis)
+- Redis (caching — planned)
 
-**Environment Setup:**
-Create a `.env` file with:
-```
-OPENAI_API_KEY=your_openai_key_here
-```
+## Alert System
+- Gmail smtplib  : user-initiated reports, always HITL
+- Slack webhook  : automated monitor alerts, no HITL
+- NO Telegram anywhere in codebase
 
-**Required Keys:**
-- `OPENAI_API_KEY` - Get from OpenAI (required)
+## Search
+- DuckDuckGo only (langchain_community DuckDuckGoSearchRun)
+- NO Tavily, NO TAVILY_API_KEY
 
-**Run the chatbot:**
-```bash
-streamlit run frontend.py
-```
+## Branch Strategy
+- main                   : stable, always runnable
+- feat/nlp-monitoring    : current branch
+- feat/pipeline-monitor  : next after nlp-monitoring merged
+- feat/redis-caching     : after pipeline-monitor merged
+- never merge broken code to main
+- always test before committing
 
-The UI will be available at `http://localhost:8501`
+## Commit Convention (Conventional Commits)
+- feat:   new feature
+- fix:    bug fix
+- chore:  config, dependencies, cleanup
+- docs:   documentation only
+- refactor: code restructure, no behavior change
 
-## Architecture
+## Directory Structure
+- tools/        single @tool decorated functions
+- subgraphs/    multi-step LangGraph flows with HITL
+- pipelines/    background processes, schedulers, health checks
+- docs/         spec files, read before building
+- data/         databases, chroma_db, cleaned files, plots
+- utils/        shared helpers (cache, formatting)
 
-The project is a stateful conversational chatbot with a **graph-based backend** and **web-based frontend**.
+## HITL Rules
+- Gmail send          : always HITL
+- Slack user-facing   : always HITL
+- CSV cleaning        : always HITL
+- SQL DELETE/UPDATE   : always HITL
+- RAG ingest          : always HITL
+- Slack monitor auto  : NO HITL (background)
+- SELECT queries      : NO HITL
+- Read operations     : NO HITL
 
-### Backend Architecture (`backend.py`)
+## Key Rules
+- test each file independently before committing
+- no emojis anywhere (cp1252)
+- plain text output from all tools
+- HITL on all write/send/delete operations
+- Gmail = user initiated only
+- Slack = automated monitor alerts only
+- Redis caches tool results, not chat messages
+- each tool file has if __name__ == "__main__" test block
 
-The backend uses **LangGraph StateGraph** to manage conversation flow with tool integration:
+## Specs
+Read relevant specs before building anything.
+**Index:** .claude/specs/INDEX.md
 
-- **ChatState**: TypedDict defining the conversation state with `messages` (Annotated list using `add_messages` reducer)
-- **chat_node**: Processing node that invokes the LLM with accumulated message history
-- **tool_node**: Execution node that handles tool calls (stock prices, holidays)
-- **Graph Flow**: START → chat_node → [conditional: tools or END] → chat_node (loops for multi-turn tool use)
-- **Checkpointer**: Uses `SqliteSaver` for persistent conversation storage across sessions
+**Tools:** .claude/specs/tools/
+  - datetime-spec.md, calculator-spec.md, search-spec.md
+  - stock-spec.md, commodity-spec.md, nlp-spec.md
+  - gmail-spec.md, csv-analyst-spec.md, monitor-spec.md, sql-analyst-spec.md
 
-**Available Tools:**
-- **get_stock_price**: Fetch current stock prices and fundamentals using yfinance (free, no API key required)
-  - Input: Stock ticker symbol (e.g., "AAPL", "TSLA", "GOOGL", "RELIANCE.BO")
-  - Returns: Price, change %, OHLC, volume, market cap, P/E ratio, 52-week high/low
-  
-- **get_india_time**: Get current date and time in India (IST - Indian Standard Time)
-  - Input: None
-  - Returns: Current date, time, and timezone
-  
-- **calculator**: Advanced mathematical expression evaluator with BODMAS and trigonometry
-  - Input: Mathematical expression (e.g., "2 + 3 * 4", "sin(pi/2)", "sqrt(16)")
-  - Supports: Basic arithmetic (+, -, *, /, %, **), parentheses, BODMAS/PEMDAS
-  - Functions: sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, sqrt, log, log10, exp, abs, ceil, floor, pow
-  - Constants: pi, e
-  - Returns: Calculated result
+**Architecture:** .claude/specs/architecture/
+  - rag-spec.md, redis-spec.md, hitl-spec.md
 
-- **web_search**: Search the web in real-time using DuckDuckGo (free, no API key required)
-  - Input: Search query (e.g., "latest AI news", "climate change 2026")
-  - Options: number of results (1-10)
-  - Returns: Search results with titles, URLs, and summaries
-  - No API key needed - completely free and anonymous
+**Pipelines:** .claude/specs/pipelines/
+  - monitor-spec.md, pipeline-spec.md, slack-spec.md
 
-- **Gmail Tools**: Send, search, and manage emails via Google Gmail API (requires OAuth2 setup)
-  - **send_gmail_message**: Send emails to recipients
-  - **create_gmail_draft**: Create email drafts
-  - **search_gmail**: Search Gmail messages using Gmail query syntax
-  - **get_gmail_message**: Fetch specific email by message ID
-  - **get_gmail_thread**: Get email conversation threads
-  - Setup: OAuth2 credentials required (see Gmail Setup section below)
-
-**Key Design Pattern:**
-- Messages reducer (`add_messages`) automatically merges new messages into state history
-- Thread-based conversation management via `RunnableConfig` with `thread_id` parameter
-- Tool binding: LLM decides when to call tools based on user queries
-- Tool results passed back to LLM for context-aware responses
-- Persistent storage of all conversation history with SqliteSaver
-
-### Frontend Architecture (`frontend.py`)
-
-Streamlit-based UI with session management:
-
-- **Session State Management**: Maintains `chat_started`, `current_thread_id`, `threads` list, and `message_history`
-- **Thread Management**: Each conversation is a separate thread with UUID identifier
-- **Hybrid State Pattern**: 
-  - UI state (message_history) stored in Streamlit `session_state`
-  - Conversation state persisted in backend checkpointer via `thread_id`
-  - `load_thread_messages()` retrieves full history from backend when switching threads
-- **Streaming Integration**: Uses `st.write_stream()` to display LLM responses in real-time
-- **UI Layout**: Sidebar for thread/chat history, main area for message display and input
-
-**Key Components:**
-- `new_thread_id()`: Generate unique identifier for conversations
-- `load_thread_messages()`: Fetch conversation history from checkpointer
-- `switch_to_thread()`: Switch active conversation and reload history
-
-## Tools Directory Structure
-
-```
-tools/
-├── stock_tool.py              # Stock price fetching tool (yfinance)
-├── india_time_tool.py         # India time and date tool (zoneinfo)
-├── calculator_tool.py         # Advanced calculator with BODMAS & trigonometry
-├── web_search_tool.py         # Web search tool (DuckDuckGo)
-└── gmail.py                   # Backward compatibility wrapper (imports from gmail_toolkit)
-
-gmail_toolkit/                 # Gmail OAuth2 tools and credentials
-├── __init__.py                # Package initialization
-├── gmail.py                   # Gmail toolkit implementation (GmailToolkit)
-├── credentials.json           # Google OAuth2 credentials (not in git)
-└── token.json                 # Google OAuth2 token (not in git)
-
-tool_testing/
-├── test_stock.py              # Stock tool test suite
-├── test_india_time.py         # India time tool test suite
-├── test_calculator.py         # Calculator tool test suite
-├── test_web_search.py         # Web search tool test suite
-└── test_gmail.py              # Gmail toolkit test suite
-```
-
-Run tests from the root directory:
-```bash
-cd tool_testing
-python test_stock.py
-python test_calender.py
-```
-
-## Gmail Setup (OAuth2)
-
-To enable Gmail integration, you need to set up Google OAuth2 credentials:
-
-1. **Create Google Cloud Project:**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project
-   - Enable the **Gmail API**
-
-2. **Create OAuth2 Credentials:**
-   - Go to "Credentials" → "Create Credentials"
-   - Select **OAuth 2.0 Client IDs** → **Desktop application**
-   - Download the JSON credentials file
-
-3. **Save Credentials:**
-   - Save the downloaded JSON as `gmail_toolkit/credentials.json`
-   - First run will generate `gmail_toolkit/token.json` via browser OAuth flow
-   - **Both files are NOT tracked in git** (in `.gitignore`)
-
-4. **Test Setup:**
-   ```bash
-   python tool_testing/test_gmail.py
-   ```
-
-The toolkit will use these credentials to authenticate with Gmail when the chatbot runs.
-
-## Development Notes
-
-### Adding New Tools
-1. Create new tool in `tools/` directory using `@tool` decorator from `langchain_core.tools`
-2. Add tool to the `tools` list in `backend.py` (line ~19)
-3. Tool will automatically be available to the LLM once bound
-
-### Adding New Nodes
-To extend the graph with additional processing:
-1. Create a new node function with signature: `def node_name(state: chatState) -> dict`
-2. Add to graph: `graph.add_node("node_name", node_name)`
-3. Define edges between nodes
-4. Re-compile with checkpointer
-
-### Conversation State Management
-- Backend stores checkpoints per `thread_id`
-- Frontend UI state resets per session (not persistent across page reloads)
-- When resuming a thread, `load_thread_messages()` retrieves from backend checkpointer
-- Current limitation: InMemorySaver is ephemeral; data lost on app restart
-
-### LLM Configuration
-The LLM is instantiated at module level:
-```python
-llm_model = ChatOpenAI()  # Uses OPENAI_API_KEY from environment
-```
-
-To change model or parameters, edit this line. Common options:
-```python
-ChatOpenAI(model="gpt-4o", temperature=0.7, max_tokens=2048)
-```
-
-### Streaming Behavior
-- Backend supports streaming via `chatbot.stream(state, config, stream_mode="messages")`
-- Frontend uses `st.write_stream()` to render chunks as they arrive
-- Requires compatible LLM (OpenAI supports streaming)
-
-## Future Roadmap
-
-1. **Persistence**: Replace `InMemorySaver` with `SqliteSaver` for conversation persistence across restarts
-2. **Database Schema**: Define conversation metadata (thread name, created_at, updated_at)
-3. **Multi-node Workflows**: Add routing logic, RAG retrieval nodes, tool use
-4. **Error Handling**: Add try-catch in nodes for robustness
-5. **RAG Integration**: Integrate ChromaDB (already in requirements.txt) for document retrieval
-
-## Testing
-
-No automated tests currently exist. To manually test:
-1. Run `streamlit run frontend.py`
-2. Click "START CHAT" to create a thread
-3. Send messages and verify responses
-4. Click "NEW CHAT" to create additional threads
-5. Click on previous threads to verify history loads correctly
-
-The `demo_chat.ipynb` notebook provides an example of using the backend directly in Python.
-
-## Known Issues
-
-- **Pydantic V1 Warning**: LangChain uses `pydantic.v1` for compatibility; non-critical warning with Python 3.14
-- **Flask Unused**: `flask>=3.1.0` is in requirements.txt but not currently used (Flask API mode removed)
+Also mirrored in docs/specs/ (GitHub-visible)
