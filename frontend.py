@@ -16,9 +16,12 @@ st.set_page_config(
 ## Available Tools Info
 AVAILABLE_TOOLS = {
     "Stock Price": "Get real-time stock prices (yfinance)",
+    "Commodity Price": "Get wheat, soy, corn, sugar prices",
     "India Time": "Current date & time in India (IST)",
     "Calculator": "Math with BODMAS & trigonometry",
     "Web Search": "Real-time web search (DuckDuckGo)",
+    "NLP Analysis": "Sentiment, keywords, summary, NER analysis",
+    "Commodity Monitor": "Start/stop real-time monitoring with alerts",
     "Send Email": "Send emails via Gmail",
     "Create Draft": "Create email drafts",
     "Search Email": "Search your Gmail messages",
@@ -126,7 +129,7 @@ with st.sidebar:
 
     # Show available tools
     st.subheader("📚 Available Tools")
-    with st.expander("View Tools (10 available)", expanded=False):
+    with st.expander("View Tools (14 available)", expanded=False):
         for tool_name, tool_desc in AVAILABLE_TOOLS.items():
             st.caption(f"**{tool_name}**: {tool_desc}")
 
@@ -374,34 +377,42 @@ if not st.session_state["chat_started"]:
 
     st.markdown("""
     ### What can I do?
-    I'm powered by **11 amazing tools** that let me:
+    I'm powered by **15 amazing tools** that let me:
 
     **General Tools:**
     1. **📈 Stock Price** - Get real-time stock quotes and fundamentals
-    2. **🕐 India Time** - Tell you the current date & time in India (IST)
-    3. **🧮 Calculator** - Solve complex math with BODMAS & trigonometry
-    4. **🔍 Web Search** - Search the web for latest information
+    2. **🌾 Commodity Price** - Get wheat, soy, corn, sugar prices
+    3. **🕐 India Time** - Tell you the current date & time in India (IST)
+    4. **🧮 Calculator** - Solve complex math with BODMAS & trigonometry
+    5. **🔍 Web Search** - Search the web for latest information
+
+    **NLP & Monitoring Tools:**
+    6. **🧠 NLP Analysis** - Analyze text sentiment, extract keywords, summarize, NER
+    7. **📊 Commodity Monitor** - Start real-time monitoring with sentiment + price alerts
+    8. **🎯 Get Monitoring Results** - View monitoring data and alert history
 
     **Data Analysis Tools:**
-    5. **📊 Analyze Data** - Analyze CSV/Excel files with semantic search (RAG)
-    6. **🗄️ Analyze SQL** - Query SQLite database with SQL commands
+    9. **📊 Analyze Data** - Analyze CSV/Excel files with semantic search (RAG)
+    10. **🗄️ Analyze SQL** - Query SQLite database with SQL commands
 
     **Email Tools (Gmail):**
-    7. **✉️ Send Email** - Send emails to anyone
-    8. **📝 Create Draft** - Create email drafts
-    9. **🔎 Search Email** - Search your Gmail messages
-    10. **📧 Get Email** - Fetch specific email details
-    11. **💬 Get Thread** - View email conversations
+    11. **✉️ Send Email** - Send emails to anyone
+    12. **📝 Create Draft** - Create email drafts
+    13. **🔎 Search Email** - Search your Gmail messages
+    14. **📧 Get Email** - Fetch specific email details
+    15. **💬 Get Thread** - View email conversations
 
     ### Try asking me:
+    - "What's the current price of wheat and corn?"
+    - "Analyze the sentiment of this text: The market is booming with growth"
+    - "Start monitoring soy prices every 30 minutes"
+    - "Check my active monitoring tasks"
     - "What's the current price of Apple stock?"
     - "What time is it in India?"
     - "Calculate sin(pi/2) + sqrt(16)"
     - "Search for latest AI news"
     - "Show all users from USA in the database"
-    - "How many total orders do we have?"
-    - "Send an email to <username>@<givenmail>.com with subject 'Hello' and message 'Hi there'"
-    - "Search my emails for 'important meeting'"
+    - "Send an email to user@example.com with subject 'Hello' and message 'Hi there'"
 
     """)
 
