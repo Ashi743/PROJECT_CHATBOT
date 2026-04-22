@@ -45,10 +45,13 @@ def load_thread_messages(thread_id):
     if state and state.values.get("messages"):
         messages = []
         for msg in state.values["messages"]:
+            # Ensure content is always a string
+            content = msg.content if isinstance(msg.content, str) else str(msg.content)
+
             if isinstance(msg, HumanMessage):
-                messages.append({"role": "user", "content": msg.content})
+                messages.append({"role": "user", "content": content})
             elif isinstance(msg, AIMessage):
-                messages.append({"role": "assistant", "content": msg.content})
+                messages.append({"role": "assistant", "content": content})
         return messages
     return []
 
