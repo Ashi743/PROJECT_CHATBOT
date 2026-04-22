@@ -20,7 +20,10 @@ from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
 
-llm_model = ChatOpenAI(model="gpt-4o")
+# Cost optimization: Use gpt-4o-mini for general chat, gpt-4o for heavy analysis
+llm_model = ChatOpenAI(model="gpt-4o-mini")  # Main chatbot (cost-effective)
+analysis_llm = ChatOpenAI(model="gpt-4o")    # Heavy analysis interpretation (high-quality)
+
 # Combine base tools with Gmail tools and data analysis tools
 base_tools = [get_stock_price, get_india_time, calculator, web_search, analyze_data, analyze_sql]
 all_tools = base_tools + gmail_tools
@@ -31,9 +34,30 @@ class chatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
+def _is_analysis_result(messages: list[BaseMessage]) -> bool:
+    """Check if the last message is a tool result from analysis tools"""
+    if not messages:
+        return False
+    last_msg = messages[-1]
+    if not isinstance(last_msg, ToolMessage):
+        return False
+    # Analysis tools produce larger, data-heavy results
+    return len(last_msg.content) > 200 or any(
+        keyword in last_msg.content.lower()
+        for keyword in ['correlation', 'histogram', 'plot', 'statistic', 'summary', '[PLOT_IMAGE']
+    )
+
+
 def chat_node(state:chatState):
     message= state["messages"]
-    response = llm_with_tools.invoke(message)
+    # Use gpt-4o for interpreting analysis results, gpt-4o-mini for regular chat
+    if _is_analysis_result(message):
+        # Heavy analysis interpretation uses gpt-4o
+        analysis_llm_with_tools = analysis_llm.bind_tools(tools)
+        response = analysis_llm_with_tools.invoke(message)
+    else:
+        # Regular chat uses cheaper gpt-4o-mini
+        response = llm_with_tools.invoke(message)
     return {'messages': [response]}
 
 def tool_node(state:chatState):
