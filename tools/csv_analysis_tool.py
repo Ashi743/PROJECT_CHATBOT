@@ -33,6 +33,13 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
             - 'sample' → Show random N rows (param: N, default 5)
             - 'rag_search' → RAG-based semantic search (param: "your natural language query")
             - 'dataset_info' → Get metadata about dataset
+            - 'visualize' → Generate all plots (histograms, heatmap, bar charts, time series, box plots)
+            - 'histogram' → Distribution histogram for numeric columns
+            - 'correlation_plot' → Correlation heatmap
+            - 'bar_chart' → Top values for categorical columns
+            - 'time_series' → Time series trend plot
+            - 'box_plot' → Box plots for outlier detection
+            - 'insights' → Complete data insights (statistics + all visualizations)
 
     Returns:
         Formatted string result of the analysis
@@ -52,46 +59,73 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
                 file_path = candidate
                 break
 
-        if not file_path and operation != 'dataset_info':
+        if not file_path and operation not in ['dataset_info', 'rag_search', 'visualize', 'histogram', 'correlation_plot', 'bar_chart', 'time_series', 'box_plot', 'insights']:
             return f"Error: Dataset '{dataset_name}' not found in uploads. Available files: {list(UPLOAD_DIR.glob('*'))}"
 
-        # Load dataframe
-        if operation != 'dataset_info' and operation != 'rag_search':
-            if file_path.suffix.lower() == '.csv':
+        # Load dataframe for all operations except dataset_info, rag_search, and visualizations
+        df = None
+        visualization_ops = ['visualize', 'histogram', 'correlation_plot', 'bar_chart', 'time_series', 'box_plot', 'insights']
+        if operation not in ['dataset_info', 'rag_search'] + visualization_ops:
+            if file_path and file_path.suffix.lower() == '.csv':
                 df = pd.read_csv(file_path)
-            else:
+            elif file_path:
+                df = pd.read_excel(file_path)
+        elif operation in visualization_ops:
+            if file_path and file_path.suffix.lower() == '.csv':
+                df = pd.read_csv(file_path)
+            elif file_path:
                 df = pd.read_excel(file_path)
 
+        # Check if dataframe was loaded for operations that require it
+        if operation not in ['dataset_info', 'rag_search'] and df is None:
+            return f"Error: Could not load dataset '{dataset_name}'"
+
         # Execute operation
-        if operation == 'head':
+        if operation == 'head' and df is not None:
             n = int(params) if params else 5
             return f"First {n} rows of '{dataset_name}':\n\n{df.head(n).to_string()}"
 
-        elif operation == 'tail':
+        elif operation == 'tail' and df is not None:
             n = int(params) if params else 5
             return f"Last {n} rows of '{dataset_name}':\n\n{df.tail(n).to_string()}"
 
         elif operation == 'describe':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             desc = df.describe()
-            return f"Statistical summary of '{dataset_name}':\n\n{desc.to_string()}"
+            summary = f"**Statistical Summary of '{dataset_name}':**\n\n"
+            for col in desc.columns:
+                summary += f"**{col}:** Count={int(desc[col]['count'])} | Mean={desc[col]['mean']:.2f} | Std={desc[col]['std']:.2f} | Min={desc[col]['min']:.2f} | Max={desc[col]['max']:.2f}\n"
+            summary += f"\n💡 **For better insights with visualizations, ask me to 'visualize {dataset_name}' or 'show plots for {dataset_name}'**"
+            return summary
 
         elif operation == 'info':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             info_str = f"Dataset: {dataset_name}\nShape: {df.shape}\nColumns:\n"
             for col in df.columns:
                 info_str += f"  {col}: {df[col].dtype} (nulls: {df[col].isnull().sum()})\n"
             return info_str
 
         elif operation == 'shape':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             rows, cols = df.shape
             return f"Dataset '{dataset_name}': {rows} rows, {cols} columns"
 
         elif operation == 'columns':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             return f"Columns in '{dataset_name}':\n" + ", ".join(df.columns.tolist())
 
         elif operation == 'dtypes':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             return f"Data types in '{dataset_name}':\n{df.dtypes.to_string()}"
 
         elif operation == 'value_counts':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             if not params:
                 return "Error: value_counts requires column name as param"
             if params not in df.columns:
@@ -100,6 +134,8 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
             return f"Value counts for '{params}' in '{dataset_name}':\n{counts.to_string()}"
 
         elif operation == 'groupby_sum':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             parts = params.split(',')
             if len(parts) != 2:
                 return "Error: groupby_sum requires 'group_col,value_col'"
@@ -110,6 +146,8 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
             return f"Sum by {group_col} in '{dataset_name}':\n{result.to_string()}"
 
         elif operation == 'groupby_mean':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             parts = params.split(',')
             if len(parts) != 2:
                 return "Error: groupby_mean requires 'group_col,value_col'"
@@ -120,6 +158,8 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
             return f"Mean by {group_col} in '{dataset_name}':\n{result.to_string()}"
 
         elif operation == 'groupby_count':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             if not params:
                 return "Error: groupby_count requires column name as param"
             if params not in df.columns:
@@ -128,6 +168,8 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
             return f"Count by {params} in '{dataset_name}':\n{result.to_string()}"
 
         elif operation == 'filter':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             try:
                 filtered = df.query(params)
                 return f"Filtered results (first 10):\n{filtered.head(10).to_string()}"
@@ -135,6 +177,8 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
                 return f"Error in filter query: {str(e)}"
 
         elif operation == 'correlation':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             numeric_df = df.select_dtypes(include=['number'])
             if numeric_df.empty:
                 return "No numeric columns found for correlation"
@@ -142,10 +186,14 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
             return f"Correlation matrix:\n{corr.to_string()}"
 
         elif operation == 'unique':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             unique_counts = df.nunique()
             return f"Unique values per column in '{dataset_name}':\n{unique_counts.to_string()}"
 
         elif operation == 'sort':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             parts = params.split(',') if params else []
             if len(parts) < 1:
                 return "Error: sort requires 'column' or 'column,asc/desc,N'"
@@ -158,10 +206,14 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
             return f"Top {n} rows sorted by {col}:\n{sorted_df.to_string()}"
 
         elif operation == 'null_count':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             nulls = df.isnull().sum()
             return f"Null values per column in '{dataset_name}':\n{nulls.to_string()}"
 
         elif operation == 'sample':
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
             n = int(params) if params else 5
             sample = df.sample(min(n, len(df)))
             return f"{n} random rows from '{dataset_name}':\n{sample.to_string()}"
@@ -193,8 +245,50 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
                 info_str += f"  Description: {info['user_description']}\n"
             return info_str
 
+        elif operation in ['visualize', 'histogram', 'correlation_plot', 'bar_chart', 'time_series', 'box_plot', 'insights']:
+            if df is None:
+                return f"Error: Could not load dataset '{dataset_name}'"
+            try:
+                from tools.plot_utils import PlotGenerator
+
+                generator = PlotGenerator(df, dataset_name)
+                result = generator.generate_all_plots()
+
+                if result["status"] == "ok":
+                    plots_info = result["plots"]
+
+                    # For 'insights' operation, include statistics too
+                    if operation == 'insights':
+                        output = f"## Data Insights for '{dataset_name}'\n\n"
+                        output += f"**Dataset Shape:** {len(df):,} rows × {len(df.columns)} columns\n\n"
+
+                        # Add quick stats
+                        output += "### Key Statistics\n"
+                        desc = df.describe()
+                        for col in desc.columns:
+                            output += f"\n**{col}:** Mean={desc[col]['mean']:.2f}, Std={desc[col]['std']:.2f}, Range=[{desc[col]['min']:.2f}, {desc[col]['max']:.2f}]\n"
+
+                        output += "\n### Visualizations\n"
+                    else:
+                        output = f"Generated {len(plots_info)} visualization(s) for '{dataset_name}':\n\n"
+
+                    for plot_type, plot_meta in plots_info.items():
+                        output += f"📊 **{plot_meta['title']}**\n\n"
+
+                    output += "---\n"
+
+                    # Embed plot paths so frontend can detect and display them
+                    for plot_type, plot_meta in plots_info.items():
+                        output += f"[PLOT_IMAGE:{plot_meta['path']}]\n"
+
+                    return output
+                else:
+                    return f"Error generating plots: {result.get('message', 'Unknown error')}"
+            except Exception as e:
+                return f"Error generating visualizations: {str(e)}"
+
         else:
-            return f"Unknown operation: '{operation}'. Valid: head, tail, describe, info, shape, columns, dtypes, value_counts, groupby_sum, groupby_mean, groupby_count, filter, correlation, unique, sort, null_count, sample, rag_search, dataset_info"
+            return f"Unknown operation: '{operation}'. Valid: head, tail, describe, info, shape, columns, dtypes, value_counts, groupby_sum, groupby_mean, groupby_count, filter, correlation, unique, sort, null_count, sample, rag_search, dataset_info, visualize, histogram, correlation_plot, bar_chart, time_series, box_plot, insights"
 
     except Exception as e:
         return f"Error analyzing data: {str(e)}"

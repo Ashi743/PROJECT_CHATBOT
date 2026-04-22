@@ -1,9 +1,10 @@
 """
-CSV Analyst Subgraph: 4-node workflow with HITL interrupts.
+CSV Analyst Subgraph: 5-node workflow with HITL interrupts.
 - load_node → interrupt #1 (preview confirm)
 - clean_node → interrupt #2 (cleaning plan)
 - analyze_node → interrupt #3 (drop duplicates)
 - rag_node → interrupt #4 (save to ChromaDB)
+- plot_node → interrupt #5 (generate visualizations)
 """
 
 import pandas as pd
@@ -29,6 +30,7 @@ class CSVAnalystState(TypedDict):
     cleaning_plan: str
     duplicates_count: int
     chunks_created: int
+    plots: dict  # Generated plot metadata
     status: str  # "in_progress" | "completed" | "cancelled"
 
 
@@ -179,6 +181,41 @@ def rag_node(state: CSVAnalystState) -> dict:
 
         return {
             "chunks_created": len(chunks),
+            "status": "in_progress",
+            "messages": [],
+        }
+    except Exception as e:
+        return {"status": "error", "messages": []}
+
+
+def plot_node(state: CSVAnalystState) -> dict:
+    """Generate visualization plots and show interrupt."""
+    try:
+        from tools.plot_utils import PlotGenerator
+
+        df = pd.read_csv(state["file_path"]) if state["file_path"].endswith('.csv') else pd.read_excel(state["file_path"])
+
+        # Show interrupt asking if user wants plots
+        confirmed = interrupt({
+            "step": "generate_plots",
+            "message": "Generate visual plots? (histograms, correlation, bar charts, etc.)",
+            "dataset_name": state["dataset_name"],
+            "rows": len(df),
+            "cols": len(df.columns)
+        })
+
+        if confirmed != "yes":
+            return {"status": "completed", "plots": {}, "messages": []}
+
+        # Generate plots
+        generator = PlotGenerator(df, state["dataset_name"])
+        result = generator.generate_all_plots()
+
+        if result["status"] == "error":
+            return {"status": "error", "messages": []}
+
+        return {
+            "plots": result["plots"],
             "status": "completed",
             "messages": [],
         }
@@ -200,12 +237,14 @@ def _build_csv_analyst_graph():
     graph.add_node("clean", clean_node)
     graph.add_node("analyze", analyze_node)
     graph.add_node("rag", rag_node)
+    graph.add_node("plot", plot_node)
 
     graph.add_edge(START, "load")
     graph.add_conditional_edges("load", should_continue, {"continue": "clean", "end": END})
     graph.add_conditional_edges("clean", should_continue, {"continue": "analyze", "end": END})
     graph.add_conditional_edges("analyze", should_continue, {"continue": "rag", "end": END})
-    graph.add_conditional_edges("rag", should_continue, {"continue": END, "end": END})
+    graph.add_conditional_edges("rag", should_continue, {"continue": "plot", "end": END})
+    graph.add_conditional_edges("plot", should_continue, {"continue": END, "end": END})
 
     return graph
 
