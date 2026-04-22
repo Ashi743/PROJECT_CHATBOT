@@ -439,26 +439,40 @@ else:
         CONFIG = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
 
         def response_generator():
+            from langchain_core.messages import AIMessage, ToolMessage
+            import re
+
             full_response = ""
+            last_ai_message = None
+
             for message_chunk, metadata in chatbot.stream(
                 {'messages': [HumanMessage(content=user_input)]},
                 config=CONFIG,
                 stream_mode="messages"):
-                if isinstance(message_chunk, str):
+
+                # Only process AIMessage for display (skip ToolMessages and others)
+                if isinstance(message_chunk, AIMessage):
+                    last_ai_message = message_chunk
+                    # Only yield if it has text content and no tool_calls
+                    if hasattr(message_chunk, 'content') and message_chunk.content:
+                        if not message_chunk.tool_calls:  # Skip if it's a tool call message
+                            content_str = str(message_chunk.content) if not isinstance(message_chunk.content, str) else message_chunk.content
+                            full_response += content_str
+                            yield content_str
+                elif isinstance(message_chunk, str):
                     full_response += message_chunk
                     yield message_chunk
-                elif hasattr(message_chunk, 'content'):
-                    content_str = str(message_chunk.content) if not isinstance(message_chunk.content, str) else message_chunk.content
-                    full_response += content_str
-                    yield content_str
+                # Skip ToolMessage - don't display tool execution details
 
             # Extract plot paths from response
-            import re
             plot_paths = re.findall(r'\[PLOT_IMAGE:([^\]]+)\]', full_response)
 
             # Remove plot markers from response for display
             display_response = re.sub(r'\[PLOT_IMAGE:[^\]]+\]\n?', '', full_response)
-            st.session_state["message_history"].append({'role': 'assistant', 'content': display_response})
+
+            # Only store if there's actual content to display
+            if display_response.strip():
+                st.session_state["message_history"].append({'role': 'assistant', 'content': display_response})
 
             # Store plots for display
             if plot_paths:
