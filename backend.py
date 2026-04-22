@@ -95,7 +95,10 @@ def tool_node(state:chatState):
         except Exception as e:
             result = f"Error executing {tool_name}: {str(e)}"
 
-        results.append(ToolMessage(content=result, tool_call_id=tool_call["id"]))
+        # Ensure result is always a string
+        result_str = str(result) if not isinstance(result, str) else result
+
+        results.append(ToolMessage(content=result_str, tool_call_id=tool_call["id"]))
 
     return {"messages": results}
 
