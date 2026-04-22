@@ -14,11 +14,15 @@ from tools.stock_tool import get_stock_price
 from tools.india_time_tool import get_india_time
 from tools.calculator_tool import calculator
 from tools.web_search_tool import web_search
+from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
 
 llm_model= ChatOpenAI()
-tools = [get_stock_price, get_india_time, calculator, web_search]
+# Combine base tools with Gmail tools
+base_tools = [get_stock_price, get_india_time, calculator, web_search]
+all_tools = base_tools + gmail_tools
+tools = all_tools
 llm_with_tools = llm_model.bind_tools(tools)
 
 class chatState(TypedDict):

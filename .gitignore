@@ -45,3 +45,7 @@ Thumbs.db
 
 # Project specific
 .claude/
+
+# Gmail OAuth2 credentials (NEVER commit)
+gmail_toolkit/credentials.json
+gmail_toolkit/token.json

@@ -61,6 +61,14 @@ The backend uses **LangGraph StateGraph** to manage conversation flow with tool 
   - Returns: Search results with titles, URLs, and summaries
   - No API key needed - completely free and anonymous
 
+- **Gmail Tools**: Send, search, and manage emails via Google Gmail API (requires OAuth2 setup)
+  - **send_gmail_message**: Send emails to recipients
+  - **create_gmail_draft**: Create email drafts
+  - **search_gmail**: Search Gmail messages using Gmail query syntax
+  - **get_gmail_message**: Fetch specific email by message ID
+  - **get_gmail_thread**: Get email conversation threads
+  - Setup: OAuth2 credentials required (see Gmail Setup section below)
+
 **Key Design Pattern:**
 - Messages reducer (`add_messages`) automatically merges new messages into state history
 - Thread-based conversation management via `RunnableConfig` with `thread_id` parameter
@@ -93,17 +101,21 @@ tools/
 ├── stock_tool.py              # Stock price fetching tool (yfinance)
 ├── india_time_tool.py         # India time and date tool (zoneinfo)
 ├── calculator_tool.py         # Advanced calculator with BODMAS & trigonometry
-├── calender_tool.py           # Holidays and calendar tool (Calendarific API)
-├── web_search_tool.py         # Web search tool (Tavily API)
-└── telegram_alert_tool.py     # Telegram alerts/notifications (BotFather)
+├── web_search_tool.py         # Web search tool (DuckDuckGo)
+└── gmail.py                   # Backward compatibility wrapper (imports from gmail_toolkit)
+
+gmail_toolkit/                 # Gmail OAuth2 tools and credentials
+├── __init__.py                # Package initialization
+├── gmail.py                   # Gmail toolkit implementation (GmailToolkit)
+├── credentials.json           # Google OAuth2 credentials (not in git)
+└── token.json                 # Google OAuth2 token (not in git)
 
 tool_testing/
 ├── test_stock.py              # Stock tool test suite
 ├── test_india_time.py         # India time tool test suite
 ├── test_calculator.py         # Calculator tool test suite
-├── test_calender_calendarific.py  # Calendar tool test suite (Calendarific)
-├── test_web_search.py         # Web search tool test suite (Tavily)
-└── test_telegram_alert.py     # Telegram alert tool test suite
+├── test_web_search.py         # Web search tool test suite
+└── test_gmail.py              # Gmail toolkit test suite
 ```
 
 Run tests from the root directory:
@@ -112,6 +124,32 @@ cd tool_testing
 python test_stock.py
 python test_calender.py
 ```
+
+## Gmail Setup (OAuth2)
+
+To enable Gmail integration, you need to set up Google OAuth2 credentials:
+
+1. **Create Google Cloud Project:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project
+   - Enable the **Gmail API**
+
+2. **Create OAuth2 Credentials:**
+   - Go to "Credentials" → "Create Credentials"
+   - Select **OAuth 2.0 Client IDs** → **Desktop application**
+   - Download the JSON credentials file
+
+3. **Save Credentials:**
+   - Save the downloaded JSON as `gmail_toolkit/credentials.json`
+   - First run will generate `gmail_toolkit/token.json` via browser OAuth flow
+   - **Both files are NOT tracked in git** (in `.gitignore`)
+
+4. **Test Setup:**
+   ```bash
+   python tool_testing/test_gmail.py
+   ```
+
+The toolkit will use these credentials to authenticate with Gmail when the chatbot runs.
 
 ## Development Notes
 

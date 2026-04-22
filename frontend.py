@@ -16,7 +16,12 @@ AVAILABLE_TOOLS = {
     "Stock Price": "Get real-time stock prices (yfinance)",
     "India Time": "Current date & time in India (IST)",
     "Calculator": "Math with BODMAS & trigonometry",
-    "Web Search": "Real-time web search (DuckDuckGo)"
+    "Web Search": "Real-time web search (DuckDuckGo)",
+    "Send Email": "Send emails via Gmail",
+    "Create Draft": "Create email drafts",
+    "Search Email": "Search your Gmail messages",
+    "Get Email": "Fetch email details by ID",
+    "Get Thread": "Get email conversations"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -84,7 +89,7 @@ with st.sidebar:
 
     # Show available tools
     st.subheader("📚 Available Tools")
-    with st.expander("View Tools (4 available)", expanded=False):
+    with st.expander("View Tools (9 available)", expanded=False):
         for tool_name, tool_desc in AVAILABLE_TOOLS.items():
             st.caption(f"**{tool_name}**: {tool_desc}")
 
@@ -152,18 +157,28 @@ if not st.session_state["chat_started"]:
 
     st.markdown("""
     ### What can I do?
-    I'm powered by **4 amazing tools** that let me:
+    I'm powered by **9 amazing tools** that let me:
 
+    **General Tools:**
     1. **📈 Stock Price** - Get real-time stock quotes and fundamentals
     2. **🕐 India Time** - Tell you the current date & time in India (IST)
     3. **🧮 Calculator** - Solve complex math with BODMAS & trigonometry
     4. **🔍 Web Search** - Search the web for latest information
+
+    **Email Tools (Gmail):**
+    5. **✉️ Send Email** - Send emails to anyone
+    6. **📝 Create Draft** - Create email drafts
+    7. **🔎 Search Email** - Search your Gmail messages
+    8. **📧 Get Email** - Fetch specific email details
+    9. **💬 Get Thread** - View email conversations
 
     ### Try asking me:
     - "What's the current price of Apple stock?"
     - "What time is it in India?"
     - "Calculate sin(pi/2) + sqrt(16)"
     - "Search for latest AI news"
+    - "Send an email to test@example.com with subject 'Hello' and message 'Hi there'"
+    - "Search my emails for 'important meeting'"
 
     """)
 
