@@ -49,3 +49,7 @@ Thumbs.db
 # Gmail OAuth2 credentials (NEVER commit)
 gmail_toolkit/credentials.json
 gmail_toolkit/token.json
+
+# CSV/Data uploads and ChromaDB (NEVER commit)
+data/uploads/
+chroma_db/

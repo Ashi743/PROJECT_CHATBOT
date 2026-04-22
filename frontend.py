@@ -3,6 +3,7 @@ from backend import chatbot, retrieve_thread, save_thread_label, delete_thread, 
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from uuid import uuid4
+from tools.csv_ingest_tool import ingest_file, list_datasets, get_dataset_info, update_dataset_description, delete_dataset
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -21,7 +22,8 @@ AVAILABLE_TOOLS = {
     "Create Draft": "Create email drafts",
     "Search Email": "Search your Gmail messages",
     "Get Email": "Fetch email details by ID",
-    "Get Thread": "Get email conversations"
+    "Get Thread": "Get email conversations",
+    "Analyze Data": "Analyze CSV/Excel data with pandas"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -89,9 +91,86 @@ with st.sidebar:
 
     # Show available tools
     st.subheader("📚 Available Tools")
-    with st.expander("View Tools (9 available)", expanded=False):
+    with st.expander("View Tools (10 available)", expanded=False):
         for tool_name, tool_desc in AVAILABLE_TOOLS.items():
             st.caption(f"**{tool_name}**: {tool_desc}")
+
+    st.divider()
+    st.subheader("📊 Data Analysis")
+
+    with st.expander("Upload CSV/Excel", expanded=False):
+        uploaded_file = st.file_uploader(
+            "Choose a CSV or Excel file",
+            type=["csv", "xlsx", "xls"],
+            key="csv_uploader"
+        )
+
+        if uploaded_file is not None:
+            col1, col2 = st.columns(2)
+            with col1:
+                dataset_name = st.text_input(
+                    "Dataset name",
+                    value=uploaded_file.name.rsplit('.', 1)[0],
+                    key="dataset_name_input"
+                )
+            with col2:
+                user_desc = st.text_input(
+                    "Description (optional)",
+                    placeholder="e.g., Q1 Sales Data",
+                    key="dataset_desc_input"
+                )
+
+            if st.button("Upload", key="upload_btn"):
+                with st.spinner("Ingesting file..."):
+                    result = ingest_file(
+                        file_bytes=uploaded_file.getvalue(),
+                        file_name=uploaded_file.name,
+                        dataset_name=dataset_name,
+                        user_description=user_desc
+                    )
+
+                    if result["status"] == "ok":
+                        st.success(f"✓ {result['message']}")
+                        st.info(f"Chunks: {result.get('chunks_created', 0)} | Numeric cols: {len(result.get('numeric_columns', []))} | Categorical cols: {len(result.get('categorical_columns', []))}")
+                    else:
+                        st.error(f"✗ {result['message']}")
+
+    # Show available datasets with HITL controls
+    datasets = list_datasets()
+    if datasets:
+        st.subheader("📁 Available Datasets")
+        for ds in datasets:
+            with st.expander(f"📊 {ds}", expanded=False):
+                info = get_dataset_info(ds)
+                if "error" not in info:
+                    st.caption(f"**Rows:** {info.get('rows')} | **Columns:** {info.get('columns', [])}")
+
+                    if info.get('user_description'):
+                        st.caption(f"**Description:** {info['user_description']}")
+
+                    # HITL: Update description
+                    new_desc = st.text_input(
+                        "Update description",
+                        value=info.get('user_description', ''),
+                        key=f"desc_{ds}"
+                    )
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Save", key=f"save_desc_{ds}"):
+                            update_result = update_dataset_description(ds, new_desc)
+                            if update_result["status"] == "ok":
+                                st.success("Description updated")
+                            else:
+                                st.error(f"Error: {update_result['message']}")
+
+                    with col2:
+                        if st.button("Delete", key=f"delete_{ds}"):
+                            delete_result = delete_dataset(ds)
+                            if delete_result["status"] == "ok":
+                                st.success("Dataset deleted")
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {delete_result['message']}")
 
     st.divider()
     st.subheader("My Conversations")
