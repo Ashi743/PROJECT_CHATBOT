@@ -36,9 +36,12 @@ build/
 *.db-shm
 *.db-wal
 
-# Logs
+# Logs and monitoring outputs
 *.log
 logs/
+monitor.log
+monitor_results.jsonl
+monitor_summary.txt
 
 # OS
 Thumbs.db
