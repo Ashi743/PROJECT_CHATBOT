@@ -102,9 +102,27 @@ def tool_node(state:chatState):
 def should_use_tools(state:chatState):
     """Decide whether to continue to tool execution or end"""
     messages = state["messages"]
+    if not messages:
+        return END
+
     last_message = messages[-1]
+
+    # Only route to tools if last message is AIMessage with tool_calls
+    # AND the tool calls have not already been responded to
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
-        return "tools"
+        # Check if each tool_call has a corresponding ToolMessage response
+        tool_call_ids = {tc["id"] for tc in last_message.tool_calls}
+        tool_response_ids = set()
+
+        # Look backwards to find ToolMessages that responded to these tool calls
+        for msg in reversed(messages[:-1]):  # Exclude the current AIMessage
+            if isinstance(msg, ToolMessage):
+                tool_response_ids.add(msg.tool_call_id)
+
+        # Only use tools if there are unresponded tool_calls
+        if tool_call_ids - tool_response_ids:
+            return "tools"
+
     return END
 
 
