@@ -15,11 +15,33 @@ METADATA_DIR.mkdir(parents=True, exist_ok=True)
 
 client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 
-def _chunk_dataframe(df: pd.DataFrame, chunk_size: int = 50) -> list[tuple[str, dict]]:
+def _calculate_optimal_chunk_size(df_rows: int) -> int:
+    """
+    Calculate optimal chunk size based on file size.
+    Larger files get bigger chunks to reduce processing time.
+    """
+    if df_rows <= 100:
+        return 10
+    elif df_rows <= 1000:
+        return 25
+    elif df_rows <= 10000:
+        return 50
+    elif df_rows <= 50000:
+        return 100
+    elif df_rows <= 100000:
+        return 250
+    else:
+        return 500
+
+def _chunk_dataframe(df: pd.DataFrame, chunk_size: int | None = None) -> list[tuple[str, dict]]:
     """
     Split dataframe into chunks for RAG ingestion.
+    If chunk_size not provided, calculates optimal size based on DataFrame rows.
     Returns list of (document_text, metadata) tuples.
     """
+    if chunk_size is None:
+        chunk_size = _calculate_optimal_chunk_size(len(df))
+
     chunks = []
     num_chunks = (len(df) + chunk_size - 1) // chunk_size
 
@@ -28,10 +50,8 @@ def _chunk_dataframe(df: pd.DataFrame, chunk_size: int = 50) -> list[tuple[str, 
         end_idx = min((i + 1) * chunk_size, len(df))
         chunk = df.iloc[start_idx:end_idx]
 
-        # Convert chunk to readable text
         doc_text = chunk.to_string()
 
-        # Add context about the chunk
         metadata = {
             "chunk_id": f"chunk_{i}",
             "start_row": start_idx,
@@ -44,21 +64,19 @@ def _chunk_dataframe(df: pd.DataFrame, chunk_size: int = 50) -> list[tuple[str, 
 
     return chunks
 
-def ingest_file(file_bytes: bytes, file_name: str, dataset_name: str, user_description: str = "") -> dict:
+def save_and_prepare_file(file_bytes: bytes, file_name: str, dataset_name: str) -> dict:
     """
-    Ingest a CSV or Excel file with full RAG support.
+    Save file to disk and prepare basic metadata (fast operation).
 
     Args:
         file_bytes: Raw file bytes from upload
         file_name: Original file name (e.g., 'sales.csv')
-        dataset_name: User-provided name for this dataset (e.g., 'sales_data')
-        user_description: Optional user description of the dataset (HITL)
+        dataset_name: User-provided name for this dataset
 
     Returns:
-        dict with status, row count, columns, and dataset_name
+        dict with status, rows, columns, dtypes, file_path
     """
     try:
-        # Determine file extension
         file_ext = Path(file_name).suffix.lower()
         if file_ext not in ['.csv', '.xlsx', '.xls']:
             return {
@@ -66,12 +84,10 @@ def ingest_file(file_bytes: bytes, file_name: str, dataset_name: str, user_descr
                 "message": f"Unsupported file type: {file_ext}. Use .csv or .xlsx"
             }
 
-        # Save file to disk
         file_path = UPLOAD_DIR / f"{dataset_name}{file_ext}"
         with open(file_path, 'wb') as f:
             f.write(file_bytes)
 
-        # Read file with pandas
         if file_ext == '.csv':
             df = pd.read_csv(file_path)
         else:
@@ -81,56 +97,101 @@ def ingest_file(file_bytes: bytes, file_name: str, dataset_name: str, user_descr
         columns = df.columns.tolist()
         dtypes_dict = df.dtypes.to_dict()
 
-        # Create ChromaDB collection for this dataset
+        return {
+            "status": "ok",
+            "file_path": str(file_path),
+            "file_ext": file_ext,
+            "rows": rows,
+            "cols": cols,
+            "columns": columns,
+            "dtypes_dict": dtypes_dict
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error saving file: {str(e)}"
+        }
+
+def ingest_file_to_rag(file_path: str, dataset_name: str, user_description: str, file_name: str, on_progress=None) -> dict:
+    """
+    Ingest prepared file into RAG system (can be slower).
+
+    Args:
+        file_path: Path to saved file
+        dataset_name: Name of dataset
+        user_description: User's description
+        file_name: Original file name
+        on_progress: Optional callable(message: str) for real-time step updates
+
+    Returns:
+        dict with status and RAG ingestion results
+    """
+    def _progress(msg: str):
+        if on_progress:
+            on_progress(msg)
+
+    try:
+        file_path_obj = Path(file_path)
+
+        _progress("📥 Loading file into memory...")
+        if file_path_obj.suffix.lower() == '.csv':
+            df = pd.read_csv(file_path)
+        else:
+            df = pd.read_excel(file_path)
+
+        rows, cols = df.shape
+        columns = df.columns.tolist()
+        dtypes_dict = df.dtypes.to_dict()
+        _progress(f"✓ Loaded {rows:,} rows × {cols} columns")
+
+        _progress("🗂️ Creating vector database collection...")
         collection = client.get_or_create_collection(
             name=dataset_name,
             metadata={"hnsw:space": "cosine"}
         )
 
-        # 1. Store metadata document
+        numeric_cols = [col for col in columns if df[col].dtype in ['int64', 'float64']]
+        categorical_cols = [col for col in columns if df[col].dtype == 'object']
+
+        _progress("📝 Storing metadata...")
         metadata_doc = {
             "dataset_name": dataset_name,
             "file_name": file_name,
             "file_path": str(file_path),
             "rows": rows,
-            "columns": columns,
-            "dtypes": {str(k): str(v) for k, v in dtypes_dict.items()},
+            "cols": cols,
             "user_description": user_description,
             "ingested_at": datetime.now().isoformat(),
-            "numeric_columns": [col for col in columns if df[col].dtype in ['int64', 'float64']],
-            "categorical_columns": [col for col in columns if df[col].dtype == 'object'],
-            "summary_stats": df.describe().to_dict()
+            "numeric_columns": str(numeric_cols),
+            "categorical_columns": str(categorical_cols),
+            "dtypes": str({str(k): str(v) for k, v in dtypes_dict.items()})
         }
-
         collection.upsert(
             ids=[f"metadata_{dataset_name}"],
             documents=[f"Metadata: {dataset_name}\n{user_description or 'No description provided'}"],
             metadatas=[metadata_doc]
         )
 
-        # 2. Store sample rows
+        _progress("🔎 Storing sample rows...")
         sample_doc = df.head(10).to_string()
         collection.upsert(
             ids=[f"sample_{dataset_name}"],
             documents=[f"Sample data from {dataset_name}:\n{sample_doc}"],
-            metadatas=[{
-                "type": "sample",
-                "sample_size": min(10, len(df))
-            }]
+            metadatas=[{"type": "sample", "sample_size": min(10, len(df))}]
         )
 
-        # 3. Chunk and store full data for RAG
-        chunks = _chunk_dataframe(df, chunk_size=50)
+        chunk_size = _calculate_optimal_chunk_size(rows)
+        chunks = _chunk_dataframe(df, chunk_size=chunk_size)
+        _progress(f"✂️ Chunking into {len(chunks)} pieces (chunk size: {chunk_size} rows)...")
         for chunk_text, chunk_meta in chunks:
             chunk_id = f"{dataset_name}_{chunk_meta['chunk_id']}"
-            merged_metadata = {**chunk_meta, "dataset_name": dataset_name}
             collection.upsert(
                 ids=[chunk_id],
                 documents=[chunk_text],
-                metadatas=[merged_metadata]
+                metadatas=[{**chunk_meta, "dataset_name": dataset_name}]
             )
 
-        # 4. Store statistics document for quick analysis
+        _progress("📊 Computing statistics...")
         stats_text = f"Statistics for {dataset_name}:\n{df.describe().to_string()}"
         collection.upsert(
             ids=[f"stats_{dataset_name}"],
@@ -138,10 +199,25 @@ def ingest_file(file_bytes: bytes, file_name: str, dataset_name: str, user_descr
             metadatas=[{"type": "statistics"}]
         )
 
-        # 5. Save metadata to JSON (for HITL review)
+        _progress("💾 Saving metadata to disk...")
+        full_metadata = {
+            "dataset_name": dataset_name,
+            "file_name": file_name,
+            "file_path": str(file_path),
+            "rows": rows,
+            "columns": columns,
+            "numeric_columns": numeric_cols,
+            "categorical_columns": categorical_cols,
+            "dtypes": {str(k): str(v) for k, v in dtypes_dict.items()},
+            "user_description": user_description,
+            "ingested_at": datetime.now().isoformat(),
+            "chunks_created": len(chunks)
+        }
         metadata_file = METADATA_DIR / f"{dataset_name}_metadata.json"
         with open(metadata_file, 'w') as f:
-            json.dump(metadata_doc, f, indent=2, default=str)
+            json.dump(full_metadata, f, indent=2, default=str)
+
+        _progress("✅ Done!")
 
         return {
             "status": "ok",
@@ -150,15 +226,31 @@ def ingest_file(file_bytes: bytes, file_name: str, dataset_name: str, user_descr
             "columns": columns,
             "chunks_created": len(chunks),
             "dataset_name": dataset_name,
-            "numeric_columns": metadata_doc["numeric_columns"],
-            "categorical_columns": metadata_doc["categorical_columns"]
+            "numeric_columns": numeric_cols,
+            "categorical_columns": categorical_cols
         }
 
     except Exception as e:
         return {
             "status": "error",
-            "message": f"Error ingesting file: {str(e)}"
+            "message": f"Error ingesting to RAG: {str(e)}"
         }
+
+def ingest_file(file_bytes: bytes, file_name: str, dataset_name: str, user_description: str = "") -> dict:
+    """
+    Wrapper that combines save and RAG ingestion (keeps backward compatibility).
+    """
+    save_result = save_and_prepare_file(file_bytes, file_name, dataset_name)
+    if save_result["status"] != "ok":
+        return save_result
+
+    rag_result = ingest_file_to_rag(
+        file_path=save_result["file_path"],
+        dataset_name=dataset_name,
+        user_description=user_description,
+        file_name=file_name
+    )
+    return rag_result
 
 def list_datasets() -> list[str]:
     """List all available datasets (ChromaDB collections)."""
@@ -172,20 +264,32 @@ def list_datasets() -> list[str]:
 def get_dataset_info(dataset_name: str) -> dict:
     """Get metadata about a specific dataset."""
     try:
+        # Try reading from JSON file first (most reliable)
+        metadata_file = METADATA_DIR / f"{dataset_name}_metadata.json"
+        if metadata_file.exists():
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+            return metadata
+
+        # Fallback to ChromaDB metadata
         collection = client.get_collection(name=dataset_name)
         results = collection.get(ids=[f"metadata_{dataset_name}"])
 
         if results and results['metadatas']:
             metadata = results['metadatas'][0]
+            columns_val = metadata.get("columns", "[]")
+            numeric_cols_val = metadata.get("numeric_columns", "[]")
+            categorical_cols_val = metadata.get("categorical_columns", "[]")
+            
             return {
                 "dataset_name": dataset_name,
                 "rows": metadata.get("rows"),
-                "columns": metadata.get("columns", []),
+                "columns": eval(columns_val) if isinstance(columns_val, str) else columns_val or [],
                 "file_name": metadata.get("file_name"),
                 "file_path": metadata.get("file_path"),
                 "user_description": metadata.get("user_description", ""),
-                "numeric_columns": metadata.get("numeric_columns", []),
-                "categorical_columns": metadata.get("categorical_columns", []),
+                "numeric_columns": eval(numeric_cols_val) if isinstance(numeric_cols_val, str) else numeric_cols_val or [],
+                "categorical_columns": eval(categorical_cols_val) if isinstance(categorical_cols_val, str) else categorical_cols_val or [],
                 "ingested_at": metadata.get("ingested_at")
             }
         return {"error": f"No metadata found for dataset '{dataset_name}'"}
@@ -239,11 +343,22 @@ def update_dataset_description(dataset_name: str, new_description: str) -> dict:
         Success/error status
     """
     try:
+        # Update JSON file if it exists
+        metadata_file = METADATA_DIR / f"{dataset_name}_metadata.json"
+        if metadata_file.exists():
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+            metadata['user_description'] = new_description
+            metadata['updated_at'] = datetime.now().isoformat()
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f, indent=2, default=str)
+
+        # Also update ChromaDB metadata
         collection = client.get_collection(name=dataset_name)
         results = collection.get(ids=[f"metadata_{dataset_name}"])
 
         if results and results['metadatas']:
-            metadata = results['metadatas'][0]
+            metadata = dict(results['metadatas'][0])
             metadata['user_description'] = new_description
             metadata['updated_at'] = datetime.now().isoformat()
 
@@ -252,11 +367,6 @@ def update_dataset_description(dataset_name: str, new_description: str) -> dict:
                 documents=[f"Metadata: {dataset_name}\n{new_description}"],
                 metadatas=[metadata]
             )
-
-            # Update JSON file
-            metadata_file = METADATA_DIR / f"{dataset_name}_metadata.json"
-            with open(metadata_file, 'w') as f:
-                json.dump(metadata, f, indent=2, default=str)
 
             return {
                 "status": "ok",
