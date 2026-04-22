@@ -55,4 +55,5 @@ gmail_toolkit/token.json
 data/uploads/
 data/plots/
 data/databases/
+data/metadata/
 chroma_db/
