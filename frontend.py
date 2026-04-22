@@ -448,8 +448,9 @@ else:
                     full_response += message_chunk
                     yield message_chunk
                 elif hasattr(message_chunk, 'content'):
-                    full_response += message_chunk.content
-                    yield message_chunk.content
+                    content_str = str(message_chunk.content) if not isinstance(message_chunk.content, str) else message_chunk.content
+                    full_response += content_str
+                    yield content_str
 
             # Extract plot paths from response
             import re
