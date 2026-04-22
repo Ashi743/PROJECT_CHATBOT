@@ -16,6 +16,9 @@ from tools.calculator_tool import calculator
 from tools.web_search_tool import web_search
 from tools.csv_analysis_tool import analyze_data
 from tools.sql_analysis_tool import analyze_sql
+from tools.nlp_tool import nlp_analyze
+from tools.commodity_tool import get_commodity_price
+from tools.monitor_tool import start_monitoring, stop_monitoring, get_monitoring_results, get_active_monitors
 from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
@@ -24,8 +27,12 @@ load_dotenv()
 llm_model = ChatOpenAI(model="gpt-4o-mini")  # Main chatbot (cost-effective)
 analysis_llm = ChatOpenAI(model="gpt-4o")    # Heavy analysis interpretation (high-quality)
 
-# Combine base tools with Gmail tools and data analysis tools
-base_tools = [get_stock_price, get_india_time, calculator, web_search, analyze_data, analyze_sql]
+# Combine base tools with Gmail tools, data analysis tools, NLP and monitoring tools
+base_tools = [
+    get_stock_price, get_india_time, calculator, web_search, analyze_data, analyze_sql,
+    nlp_analyze, get_commodity_price, start_monitoring, stop_monitoring,
+    get_monitoring_results, get_active_monitors
+]
 all_tools = base_tools + gmail_tools
 tools = all_tools
 llm_with_tools = llm_model.bind_tools(tools)
@@ -42,8 +49,9 @@ def _is_analysis_result(messages: list[BaseMessage]) -> bool:
     if not isinstance(last_msg, ToolMessage):
         return False
     # Analysis tools produce larger, data-heavy results
-    return len(last_msg.content) > 200 or any(
-        keyword in last_msg.content.lower()
+    content_str = str(last_msg.content)
+    return len(content_str) > 200 or any(
+        keyword in content_str.lower()
         for keyword in ['correlation', 'histogram', 'plot', 'statistic', 'summary', '[PLOT_IMAGE']
     )
 
