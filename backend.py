@@ -15,13 +15,14 @@ from tools.india_time_tool import get_india_time
 from tools.calculator_tool import calculator
 from tools.web_search_tool import web_search
 from tools.csv_analysis_tool import analyze_data
+from tools.sql_analysis_tool import analyze_sql
 from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
 
-llm_model= ChatOpenAI()
+llm_model = ChatOpenAI(model="gpt-4o")
 # Combine base tools with Gmail tools and data analysis tools
-base_tools = [get_stock_price, get_india_time, calculator, web_search, analyze_data]
+base_tools = [get_stock_price, get_india_time, calculator, web_search, analyze_data, analyze_sql]
 all_tools = base_tools + gmail_tools
 tools = all_tools
 llm_with_tools = llm_model.bind_tools(tools)
