@@ -6,6 +6,9 @@ from uuid import uuid4
 from pathlib import Path
 from tools.csv_ingest_tool import save_and_prepare_file, ingest_file_to_rag, list_datasets, get_dataset_info, update_dataset_description, delete_dataset
 from tools.sql_file_ingest_tool import ingest_sql_file, get_database_list, get_database_schema, delete_database
+from monitoring.reports.formatter import format_daily_report, has_issues, format_issue_alert
+from monitoring.alerts.slack_alert import alert_daily
+from monitoring.alerts.gmail_alert import send_gmail_report
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -32,7 +35,10 @@ AVAILABLE_TOOLS = {
     "Analyze SQL": "Query SQLite database with SQL",
     "Upload SQL Files": "Create databases from .sql files (CREATE TABLE + INSERT)",
     "List Databases": "See all uploaded SQL databases",
-    "Query Database": "Run SELECT queries on any uploaded database"
+    "Query Database": "Run SELECT queries on any uploaded database",
+    "Get Holidays": "Get holidays for any country via Calendarific API",
+    "Search Holidays": "Search holidays by keyword (e.g., Christmas, Diwali)",
+    "List Countries": "List all countries supported by Calendarific"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -529,6 +535,11 @@ with st.sidebar:
     else:
         st.info("Monitor: STOPPED")
 
+    gmail_now_btn = False
+    slack_now_btn = False
+    schedule_btn = False
+    stop_reports_btn = False
+
     if st.session_state.get("monitor_running"):
         st.divider()
         st.caption("Report Actions:")
@@ -581,7 +592,6 @@ if start_btn and not st.session_state.get("monitor_running"):
         results = run_selected_checks(selections)
         st.session_state["last_check_results"] = results
 
-        from monitoring.reports.formatter import format_daily_report
         report = format_daily_report(results)
 
         st.session_state["message_history"].append({
@@ -720,7 +730,6 @@ else:
             with h_col2:
                 if st.button("Slack Now", key="h_slack_now"):
                     results = st.session_state["last_check_results"]
-                    from monitoring.alerts.slack_alert import alert_daily
                     alert_daily(results)
 
                     st.session_state["message_history"].append({
@@ -744,7 +753,6 @@ else:
 
         elif context == "gmail_now":
             results = st.session_state.get("last_check_results", {})
-            from monitoring.reports.formatter import format_daily_report
             report = format_daily_report(results)
 
             st.divider()
@@ -874,7 +882,6 @@ else:
 
             results = st.session_state.get("last_check_results")
             if results:
-                from monitoring.reports.formatter import has_issues, format_issue_alert
                 if has_issues(results):
                     lines.append("\nCurrent Issues:")
                     lines.append(format_issue_alert(results))
@@ -931,7 +938,6 @@ else:
                     if st.session_state.get("monitor_running"):
                         results = st.session_state.get("last_check_results")
                         if results:
-                            from monitoring.alerts.slack_alert import alert_daily
                             alert_daily(results)
                             st.session_state["message_history"].append({
                                 "role": "user",
