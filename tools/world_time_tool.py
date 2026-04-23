@@ -53,7 +53,7 @@ CITY_TO_TIMEZONE = {
 def get_timezone_from_city(city: str) -> str:
     """
     Map city name to IANA timezone.
-    Returns timezone string or None if not found.
+    Returns timezone string or empty string if not found.
     """
     city_lower = city.lower().strip()
 
@@ -63,7 +63,7 @@ def get_timezone_from_city(city: str) -> str:
     if city_lower in available_timezones():
         return city_lower
 
-    return None
+    return ""
 
 
 def get_utc_offset(tz: ZoneInfo) -> str:
@@ -191,7 +191,7 @@ def get_world_time_multiple(cities: str) -> str:
 
 
 @tool
-def get_holidays(country: str, year: int = None) -> str:
+def get_holidays(country: str, year: int | None = None) -> str:
     """
     Get list of holidays for a specific country and year via Calendarific API.
 
