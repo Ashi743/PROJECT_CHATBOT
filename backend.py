@@ -1,6 +1,5 @@
-from langchain.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, ToolMessage, AIMessage
+from langchain_core.messages import BaseMessage, ToolMessage, AIMessage, HumanMessage
 
 from langgraph.graph import StateGraph, START ,END
 from langgraph.graph.message import add_messages
