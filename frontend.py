@@ -37,6 +37,7 @@ AVAILABLE_TOOLS = {
     "List Databases": "See all uploaded SQL databases",
     "Query Database": "Run SELECT queries on any uploaded database",
     "Get Holidays": "Get holidays for any country via Calendarific API",
+    "Upcoming Holidays": "Get holidays for next 3 months (smart date detection)",
     "Search Holidays": "Search holidays by keyword (e.g., Christmas, Diwali)",
     "List Countries": "List all countries supported by Calendarific"
 }

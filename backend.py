@@ -20,7 +20,7 @@ from tools.nlp_tool import nlp_analyze
 from tools.commodity_tool import get_commodity_price
 from tools.monitor_tool import start_monitoring, stop_monitoring, get_monitoring_results, get_active_monitors
 from tools.slack_alert_tool import slack_notify
-from tools.calendarific_tool import get_holidays, search_holidays, list_supported_countries
+from tools.calendarific_tool import get_holidays, search_holidays, list_supported_countries, get_upcoming_holidays
 from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
@@ -34,7 +34,7 @@ base_tools = [
     get_stock_price, get_india_time, calculator, web_search, analyze_data, analyze_sql,
     nlp_analyze, get_commodity_price, start_monitoring, stop_monitoring,
     get_monitoring_results, get_active_monitors, slack_notify,
-    get_holidays, search_holidays, list_supported_countries
+    get_holidays, search_holidays, list_supported_countries, get_upcoming_holidays
 ]
 all_tools = base_tools + gmail_tools
 tools = all_tools

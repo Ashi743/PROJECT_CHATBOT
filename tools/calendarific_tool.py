@@ -2,6 +2,7 @@ from langchain_core.tools import tool
 import requests
 import os
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -9,14 +10,111 @@ CALENDARIFIC_API_KEY = os.getenv("CALENDARIFIC_API_KEY")
 BASE_URL = "https://calendarific.com/api/v2"
 
 
+def get_current_date():
+    """Get current date"""
+    return datetime.now()
+
+
+def get_next_3_months():
+    """Get current month + next 2 months as list of (year, month) tuples"""
+    now = get_current_date()
+    months = []
+
+    for i in range(3):
+        current = now + timedelta(days=30 * i)
+        months.append((current.year, current.month))
+
+    return months
+
+
 @tool
-def get_holidays(country: str, year: int = 2026) -> str:
+def get_upcoming_holidays(country: str) -> str:
+    """
+    Get holidays for the next 3 months (current month + 2 upcoming months).
+    Smart function that automatically detects current date.
+
+    Args:
+        country: Country code (e.g., 'US', 'IN', 'GB', 'FR')
+
+    Returns:
+        Formatted list of holidays for next 3 months with dates
+
+    Examples:
+        get_upcoming_holidays("IN") -> Holidays in India for next 3 months
+        get_upcoming_holidays("US") -> US holidays for next 3 months
+    """
+    if not CALENDARIFIC_API_KEY:
+        return "[ERROR] CALENDARIFIC_API_KEY not configured in .env file"
+
+    try:
+        now = get_current_date()
+        months_to_fetch = get_next_3_months()
+
+        all_holidays = []
+
+        for year, month in months_to_fetch:
+            response = requests.get(
+                f"{BASE_URL}/holidays",
+                params={
+                    "api_key": CALENDARIFIC_API_KEY,
+                    "country": country.upper(),
+                    "year": year,
+                    "month": month
+                },
+                timeout=10
+            )
+
+            if response.status_code != 200:
+                continue
+
+            data = response.json()
+            holidays = data.get("response", {}).get("holidays", [])
+
+            for holiday in holidays:
+                date_str = holiday.get("date", {}).get("iso", "")
+
+                if date_str:
+                    try:
+                        date_obj = datetime.fromisoformat(date_str)
+                        now_date = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+
+                        if date_obj >= now_date:
+                            all_holidays.append({
+                                "date": date_str,
+                                "name": holiday.get("name", "Unknown"),
+                                "description": holiday.get("description", "")
+                            })
+                    except Exception:
+                        continue
+
+        if not all_holidays:
+            return f"No upcoming holidays found for {country.upper()} in the next 3 months"
+
+        all_holidays.sort(key=lambda x: x["date"])
+
+        lines = [f"Upcoming holidays in {country.upper()} (next 3 months):\n"]
+        for holiday in all_holidays:
+            line = f"  {holiday['date']} - {holiday['name']}"
+            if holiday["description"]:
+                line += f" ({holiday['description']})"
+            lines.append(line)
+
+        return "\n".join(lines)
+
+    except requests.exceptions.Timeout:
+        return "[ERROR] Request timeout while fetching holidays"
+    except Exception as e:
+        return f"[ERROR] Failed to fetch upcoming holidays: {str(e)}"
+
+
+@tool
+def get_holidays(country: str, year: int = None) -> str:
     """
     Get list of holidays for a specific country and year.
 
     Args:
         country: Country code (e.g., 'US', 'IN', 'GB', 'FR', 'DE', 'JP', 'AU', 'CA')
-        year: Year to get holidays for (default: 2026)
+        year: Year to get holidays for (default: current year)
 
     Returns:
         Formatted list of holidays with dates and descriptions
@@ -27,6 +125,9 @@ def get_holidays(country: str, year: int = 2026) -> str:
     """
     if not CALENDARIFIC_API_KEY:
         return "[ERROR] CALENDARIFIC_API_KEY not configured in .env file"
+
+    if year is None:
+        year = get_current_date().year
 
     try:
         response = requests.get(
