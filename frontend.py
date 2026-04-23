@@ -458,33 +458,6 @@ with st.sidebar:
                                 st.session_state[f"confirm_delete_dataset_{ds}"] = False
                                 st.rerun()
 
-    st.divider()
-    st.subheader("SQL Databases")
-
-    with st.expander("Upload SQL File", expanded=False):
-        uploaded_sql_file = st.file_uploader(
-            "Choose a .sql file",
-            type=["sql"],
-            key="sql_uploader"
-        )
-
-        if uploaded_sql_file is not None:
-            if st.button("Upload SQL File", key="upload_sql_btn"):
-                with st.spinner("Processing SQL file..."):
-                    result = ingest_sql_file(
-                        file_bytes=uploaded_sql_file.getvalue(),
-                        file_name=uploaded_sql_file.name
-                    )
-
-                    if result["status"] == "ok":
-                        st.success(f"[OK] {result['message']}")
-                        st.info(f"Tables created: {', '.join(result['tables']) if result['tables'] else 'None'}")
-                        if result.get('warnings'):
-                            st.warning(f"[WARNING] {len(result['warnings'])} statement(s) had issues")
-                        st.rerun()
-                    else:
-                        st.error(f"[ERROR] {result['message']}")
-
     # Show available databases
     databases = get_database_list()
     if databases:
