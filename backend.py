@@ -172,7 +172,11 @@ def _graceful_shutdown(*args):
         print(f"[ERROR] Shutdown error: {e}")
 
 atexit.register(_graceful_shutdown)
-signal.signal(signal.SIGTERM, _graceful_shutdown)
+try:
+    signal.signal(signal.SIGTERM, _graceful_shutdown)
+except ValueError:
+    # Signal handlers only work in main thread (Streamlit runs in worker thread)
+    pass
 ## --------------------------------------------------------------
 
 # Create thread_metadata table for storing custom labels
