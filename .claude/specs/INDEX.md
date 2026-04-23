@@ -16,6 +16,7 @@ Read relevant specs before building or modifying code.
 | csv_analyst | tools/csv-analyst-spec.md | [WIP] | feat/nlp-monitoring | Pandas analysis + RAG + plots |
 | monitor | tools/monitor-spec.md | [DONE] | feat/nlp-monitoring | Background commodity monitoring |
 | sql_analyst | tools/sql-analyst-spec.md | [DONE] | feat/nlp-monitoring | SQLite analysis + CRUD |
+| world_time_calendar | tools/world-time-calendar-spec.md | [WIP] | feat/time-calender | World clock + holiday queries for any country |
 
 ## Architecture (Read before designing new systems)
 

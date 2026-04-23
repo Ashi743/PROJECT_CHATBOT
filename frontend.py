@@ -21,7 +21,8 @@ st.set_page_config(
 AVAILABLE_TOOLS = {
     "Stock Price": "Get real-time stock prices (yfinance)",
     "Commodity Price": "Get wheat, soy, corn, sugar prices",
-    "India Time": "Current date and time in India (IST)",
+    "World Time": "Get current time in any city worldwide",
+    "Time Comparison": "Compare time across multiple cities",
     "Calculator": "Math with BODMAS and trigonometry",
     "Web Search": "Real-time web search (DuckDuckGo)",
     "NLP Analysis": "Sentiment, keywords, summary, NER analysis",
@@ -38,8 +39,7 @@ AVAILABLE_TOOLS = {
     "Query Database": "Run SELECT queries on any uploaded database",
     "Get Holidays": "Get holidays for any country via Calendarific API",
     "Upcoming Holidays": "Get holidays for next 3 months (smart date detection)",
-    "Search Holidays": "Search holidays by keyword (e.g., Christmas, Diwali)",
-    "List Countries": "List all countries supported by Calendarific"
+    "Supported Countries": "List all countries with holiday data"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -164,7 +164,7 @@ with st.sidebar:
 
     # Show available tools
     st.subheader("📚 Available Tools")
-    with st.expander("View Tools (14 available)", expanded=False):
+    with st.expander("View Tools (19 available)", expanded=False):
         for tool_name, tool_desc in AVAILABLE_TOOLS.items():
             st.caption(f"**{tool_name}**: {tool_desc}")
 
@@ -664,38 +664,46 @@ if not st.session_state["chat_started"]:
 
     st.markdown("""
     ### What can I do?
-    I'm powered by **15 amazing tools** that let me:
+    I'm powered by **17 amazing tools** that let me:
 
     **General Tools:**
-    1. **📈 Stock Price** - Get real-time stock quotes and fundamentals
-    2. **🌾 Commodity Price** - Get wheat, soy, corn, sugar prices
-    3. **🕐 India Time** - Tell you the current date & time in India (IST)
-    4. **🧮 Calculator** - Solve complex math with BODMAS & trigonometry
-    5. **🔍 Web Search** - Search the web for latest information
+    1. **Stock Price** - Get real-time stock quotes and fundamentals
+    2. **Commodity Price** - Get wheat, soy, corn, sugar prices
+    3. **World Time** - Tell you the current date & time in any city worldwide
+    4. **Time Comparison** - Compare time across multiple cities
+    5. **Calculator** - Solve complex math with BODMAS & trigonometry
+    6. **Web Search** - Search the web for latest information
+
+    **Calendar & Holidays:**
+    7. **Get Holidays** - Fetch holidays for any country and year
+    8. **Upcoming Holidays** - Get holidays for next 3 months (smart date detection)
+    9. **Supported Countries** - List all countries with holiday data
 
     **NLP & Monitoring Tools:**
-    6. **🧠 NLP Analysis** - Analyze text sentiment, extract keywords, summarize, NER
-    7. **📊 Commodity Monitor** - Start real-time monitoring with sentiment + price alerts
-    8. **🎯 Get Monitoring Results** - View monitoring data and alert history
+    10. **NLP Analysis** - Analyze text sentiment, extract keywords, summarize, NER
+    11. **Commodity Monitor** - Start real-time monitoring with sentiment + price alerts
+    12. **Get Monitoring Results** - View monitoring data and alert history
 
     **Data Analysis Tools:**
-    9. **📊 Analyze Data** - Analyze CSV/Excel files with semantic search (RAG)
-    10. **🗄️ Analyze SQL** - Query SQLite database with SQL commands
+    13. **Analyze Data** - Analyze CSV/Excel files with semantic search (RAG)
+    14. **Analyze SQL** - Query SQLite database with SQL commands
 
     **Email Tools (Gmail):**
-    11. **✉️ Send Email** - Send emails to anyone
-    12. **📝 Create Draft** - Create email drafts
-    13. **🔎 Search Email** - Search your Gmail messages
-    14. **📧 Get Email** - Fetch specific email details
-    15. **💬 Get Thread** - View email conversations
+    15. **Send Email** - Send emails to anyone
+    16. **Create Draft** - Create email drafts
+    17. **Search Email** - Search your Gmail messages
+    18. **Get Email** - Fetch specific email details
+    19. **Get Thread** - View email conversations
 
     ### Try asking me:
+    - "What time is it in Tokyo, London, and New York?"
+    - "What holidays are coming up in Japan?"
+    - "Show me holidays in the US for 2026"
     - "What's the current price of wheat and corn?"
     - "Analyze the sentiment of this text: The market is booming with growth"
     - "Start monitoring soy prices every 30 minutes"
     - "Check my active monitoring tasks"
     - "What's the current price of Apple stock?"
-    - "What time is it in India?"
     - "Calculate sin(pi/2) + sqrt(16)"
     - "Search for latest AI news"
     - "Show all users from USA in the database"
