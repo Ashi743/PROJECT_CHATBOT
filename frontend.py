@@ -242,21 +242,21 @@ with st.sidebar:
                                 st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
                                 st.rerun()
 
-            # Rename input field
-            if st.session_state.get(f"rename_mode_{thread['id']}", False):
-                new_label = st.text_input("New name:", value=thread["label"], key=f"rename_input_{thread['id']}")
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.button("Save", key=f"save_rename_{thread['id']}"):
-                        if new_label and new_label.strip():
-                            rename_thread(thread["id"], new_label)
-                            thread["label"] = new_label
-                            st.session_state[f"rename_mode_{thread['id']}"] = False
-                            st.rerun()
-                with col_cancel:
-                    if st.button("Cancel", key=f"cancel_rename_{thread['id']}"):
-                        st.session_state[f"rename_mode_{thread['id']}"] = False
-                        st.rerun()
+                    # Rename input field
+                    if st.session_state.get(f"rename_mode_{thread['id']}", False):
+                        new_label = st.text_input("New name:", value=thread["label"], key=f"rename_input_{thread['id']}")
+                        col_save, col_cancel = st.columns(2)
+                        with col_save:
+                            if st.button("Save", key=f"save_rename_{thread['id']}"):
+                                if new_label and new_label.strip():
+                                    rename_thread(thread["id"], new_label)
+                                    thread["label"] = new_label
+                                    st.session_state[f"rename_mode_{thread['id']}"] = False
+                                    st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"cancel_rename_{thread['id']}"):
+                                st.session_state[f"rename_mode_{thread['id']}"] = False
+                                st.rerun()
 
     # Show available tools
     st.subheader("📚 Available Tools")

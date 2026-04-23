@@ -1135,3 +1135,72 @@ Deferred to subsequent branches per build roadmap:
 - **feat/docker** — Dockerfile, docker-compose, Redis cache backend flip
 
 Do NOT mix these concerns into `feat/production-fixes`. One branch, one purpose.
+
+---
+
+## Implementation Status (as of 2026-04-24)
+
+**Summary:** All production fixes completed and merged to main via PR #8 (feat/production-fixes).
+
+### Phase 1 — CRITICAL (100% ✅)
+- ✅ 1.1 Fix langchain.messages imports — langchain_core.messages everywhere
+- ✅ 1.2 Env-var Gmail recipient — GMAIL_RECIPIENT from .env (commit not tracked separately)
+- ✅ 1.3 HITL on start_monitoring — confirm=True parameter implemented
+- ✅ 1.4 runtime_state.py — File-backed cross-thread flags working
+- ✅ 1.5 Load dataframe once — CSV analyst caches in state to avoid re-reads
+- ✅ 1.6 Stop previous monitor thread — Thread cleanup on Streamlit reruns
+- ✅ 1.7 Graceful shutdown for SqliteSaver — SIGTERM + atexit handlers (commit c3f4b5f: "fix: make signal handler registration work in Streamlit worker thread")
+
+### Phase 2 — HIGH (100% ✅)
+- ✅ 2.1 SQLite connection pooling — utils/db_pool.py with per-database connections
+- ✅ 2.2 Central paths — utils/paths.py with canonical DATA_DIR, CHROMA_DIR, PLOTS_DIR, UPLOADS_DIR, DATABASES_DIR
+- ✅ 2.3 Lazy ChromaDB client — utils/chroma.py with thread-safe singleton pattern
+- ✅ 2.4 Plots retention — Daily 7-day cleanup job in scheduler (commit 903d322)
+- ✅ 2.5 Dual-LLM routing — ANALYSIS_KEYWORDS pattern documented and applied
+- ✅ 2.6 Remove os.chdir from gmail_toolkit — Locked context manager (from contextlib import contextmanager)
+- ✅ 2.7 Rate limiting — rate_limit() token bucket on all external tools (web_search 2s, stock/commodity/calendarific 1s)
+- ✅ 2.8 Central logging — utils/logging_config.py with file + stdout handlers (commit 903d322: "chore: centralize logging setup")
+
+### Phase 3 — MEDIUM (100% ✅)
+- ✅ 3.1 SQL injection protection — _validate_table_name() whitelists against sqlite_master
+- ✅ 3.2 Move sample data — data/sample_init.sql extracted from hardcoded INSERTs
+- ✅ 3.3 Dispatcher pattern — analyze_data() uses OPERATIONS dict instead of if/elif
+- ✅ 3.4 Standardize error format — All tools use [ERROR]/[WARN]/[OK]/[ALERT] format
+- ✅ 3.5 Fix subgraphs/__init__.py — Export builder functions (build_rag_ingestion_graph, etc.)
+- ✅ 3.6 Remove dead edge in sql_analyst — Unreachable conditional removed (commit bf0c756: "fix(sql_analyst): remove unreachable conditional edge in subgraph")
+- ✅ 3.7 Pin requirements.txt — Compatible-release (~=) pinning + requirements-lock.txt
+- ✅ 3.8 Smoke test skeleton — tests/test_tools_smoke.py, test_monitor_smoke.py, conftest.py
+
+### Phase 4 — DOCUMENTATION (100% ✅)
+- ✅ 4.1 Reconcile CLAUDE.md/README — SQLite confirmed (not MySQL), DuckDuckGo confirmed (not Tavily), no Telegram
+- ✅ 4.2 Update specs — Added paths-spec.md, logging-spec.md, rate-limit-spec.md (commit 8fa5577: "docs(specs): update INDEX and add paths, logging, rate-limit specs")
+
+### Phase 5 — VALIDATION & MERGE (✅ PASSED)
+- ✅ All smoke tests pass
+- ✅ All tools import without error
+- ✅ Backend boots successfully
+- ✅ Monitor runner boots successfully
+- ✅ Frontend launches (no import errors)
+- ✅ Anti-pattern greps clean:
+  - No `from langchain.messages` imports
+  - No hardcoded `ashishdangwal97@gmail.com`
+  - No silent `except: pass` blocks
+  - All requirements use `~=` pinning
+- ✅ Merged to main via PR #8 (commit 8e7b690)
+
+### Key Commits
+| Commit | Message | Phase |
+|--------|---------|-------|
+| 8e7b690 | Merge pull request #8 from Ashi743/feat/production-fixes | All |
+| c3f4b5f | fix: make signal handler registration work in Streamlit worker thread | 1.7 |
+| 8fa5577 | docs(specs): update INDEX and add paths, logging, rate-limit specs | 4.2 |
+| bf0c756 | fix(sql_analyst): remove unreachable conditional edge in subgraph | 3.6 |
+| 903d322 | chore: centralize logging setup in backend and monitoring | 2.8, 2.4 |
+
+### Files Created/Modified
+- **Created:** utils/db_pool.py, utils/paths.py, utils/chroma.py, utils/retention.py, utils/logging_config.py, utils/rate_limit.py, utils/runtime_state.py, data/sample_init.sql, tests/*, .claude/specs/architecture/{paths,logging,rate-limit}-spec.md
+- **Modified:** backend.py, frontend.py, monitoring/alerts/*.py, monitoring/checks/*.py, monitoring/runner.py, tools/*.py, subgraphs/sql_analyst_subgraph.py, requirements.txt
+- **Verified:** CLAUDE.md, README.md, tool_testing/README.md all match actual stack
+
+### Status
+🟢 **COMPLETE** — Ready for next feature branch (feat/c-rag)
