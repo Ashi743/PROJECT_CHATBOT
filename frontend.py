@@ -867,7 +867,9 @@ else:
             "send report now": "gmail_now",
             "send to slack": "slack_now",
             "show monitor status": "monitor_status",
-            "schedule report": "schedule_report"
+            "schedule report": "schedule_report",
+            "load report": "load_report",
+            "show report": "load_report"
         }
 
         def get_monitor_status() -> str:
@@ -894,7 +896,7 @@ else:
                     lines.append("\nCurrent Issues:")
                     lines.append(format_issue_alert(results))
                 else:
-                    lines.append("\nAll systems: [OK]")
+                    lines.append("\nAll systems work fine [OK]")
 
             return "\n".join(lines)
 
@@ -974,6 +976,33 @@ else:
                     if st.session_state.get("monitor_running"):
                         st.session_state["awaiting_hitl"] = True
                         st.session_state["hitl_context"] = "schedule_report"
+                        command_executed = True
+                        break
+
+                elif action == "load_report":
+                    if st.session_state.get("monitor_running"):
+                        results = st.session_state.get("last_check_results")
+                        if results:
+                            st.session_state["message_history"].append({
+                                "role": "user",
+                                "content": user_input
+                            })
+                            st.session_state["message_history"].append({
+                                "role": "assistant",
+                                "content": format_daily_report(results),
+                                "has_report_table": True
+                            })
+                            command_executed = True
+                            break
+                    else:
+                        st.session_state["message_history"].append({
+                            "role": "user",
+                            "content": user_input
+                        })
+                        st.session_state["message_history"].append({
+                            "role": "assistant",
+                            "content": "Monitor is not running. Start monitoring first with 'Start Monitor' in sidebar."
+                        })
                         command_executed = True
                         break
 

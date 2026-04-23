@@ -1,5 +1,5 @@
 from tools.slack_alert_tool import send_slack_alert
-from monitoring.reports.formatter import format_issue_alert, format_daily_report, format_all_clear, has_issues
+from monitoring.reports.formatter import format_issue_alert, format_daily_report, format_report_for_slack, format_all_clear, has_issues
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ def alert_issues(results: dict):
 
 
 def alert_daily(results: dict):
-    msg = format_daily_report(results)
+    msg = format_report_for_slack(results)
     result = send_slack_alert(msg, title="Daily System Report", severity="info")
     if result["status"] == "ok":
         logger.info("Slack daily report sent")

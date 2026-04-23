@@ -623,4 +623,4 @@ If all ✓, merge to main.
 - **Document as you go** — comments in each module
 - **No emojis in code** — Windows cp1252 (except in UI strings, those render in browser)
 
-This redesign makes the app **interview-ready** — clean, professional, easy to demo. Shows you can write production UI, not just backend plumbing.
+
