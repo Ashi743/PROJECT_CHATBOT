@@ -93,7 +93,7 @@ def render_report_tables(results: dict):
                 if isinstance(items, dict):
                     for key, value in items.items():
                         if isinstance(value, dict) and "status" in value:
-                            if value["status"] in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]"]:
+                            if value["status"] in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]", "[SURGE]"]:
                                 issues.append({"Component": key, "Status": value["status"], "Details": value.get("error", "")})
             if issues:
                 st.dataframe(pd.DataFrame(issues), use_container_width=True)

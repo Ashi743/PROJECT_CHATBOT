@@ -8,7 +8,7 @@ def has_issues(results: dict) -> bool:
             for key, value in items.items():
                 if isinstance(value, dict) and "status" in value:
                     status = value["status"]
-                    if status in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]"]:
+                    if status in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]", "[SURGE]"]:
                         return True
     return False
 
@@ -21,7 +21,7 @@ def format_issue_alert(results: dict) -> str:
             for key, value in items.items():
                 if isinstance(value, dict) and "status" in value:
                     status = value["status"]
-                    if status in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]"]:
+                    if status in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]", "[SURGE]"]:
                         issue_line = f"[{status}] {key}: {status}"
                         if "error" in value:
                             issue_line += f" - {value['error']}"
@@ -166,7 +166,7 @@ def format_report_as_html(results: dict) -> str:
                 for key, value in items.items():
                     if isinstance(value, dict) and "status" in value:
                         status = value["status"]
-                        if status in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]"]:
+                        if status in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]", "[SURGE]"]:
                             css_class = "alert" if status == "[ALERT]" else ("down" if status == "[DOWN]" else "warn")
                             details = value.get("error", "")
                             html += f'<tr class="{css_class}"><td>{key}</td><td>{status}</td><td>{details}</td></tr>'
@@ -262,7 +262,7 @@ _Timestamp: {datetime.now().strftime("%d %b %Y %H:%M:%S")}_
             if isinstance(items, dict):
                 for key, value in items.items():
                     if isinstance(value, dict) and "status" in value:
-                        if value["status"] in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]"]:
+                        if value["status"] in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]", "[SURGE]"]:
                             status = value["status"]
                             error = value.get("error", "")[:30]
                             msg += f"{key:<30} {status:<12} {error}\n"
