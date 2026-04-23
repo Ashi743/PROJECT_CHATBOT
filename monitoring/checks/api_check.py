@@ -4,8 +4,10 @@ import requests
 import yfinance as yf
 import smtplib
 import os
+from dotenv import load_dotenv
 from langchain_community.tools import DuckDuckGoSearchRun
 
+load_dotenv()
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
