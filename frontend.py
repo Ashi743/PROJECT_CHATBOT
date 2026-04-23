@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+from datetime import datetime
 from backend import chatbot, retrieve_thread, save_thread_label, delete_thread, rename_thread
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -9,6 +11,7 @@ from tools.sql_file_ingest_tool import ingest_sql_file, get_database_list, get_d
 from monitoring.reports.formatter import format_daily_report, has_issues, format_issue_alert
 from monitoring.alerts.slack_alert import alert_daily
 from monitoring.alerts.gmail_alert import send_gmail_report
+from frontend.utils import new_thread_id, load_thread_messages, extract_first_5_words, update_thread_label
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -44,50 +47,10 @@ AVAILABLE_TOOLS = {
 
 ## ----------------- utility functions for thread management -----------------
 
-
-def new_thread_id():
-    return str(uuid4())
-
-def load_thread_messages(thread_id):
-
-    CONFIG = RunnableConfig(configurable={"thread_id": thread_id})
-
-    state = chatbot.get_state(config=CONFIG)
-    if state and state.values.get("messages"):
-        messages = []
-        for msg in state.values["messages"]:
-            # Ensure content is always a string
-            content = msg.content if isinstance(msg.content, str) else str(msg.content)
-
-            if isinstance(msg, HumanMessage):
-                messages.append({"role": "user", "content": content})
-            elif isinstance(msg, AIMessage):
-                messages.append({"role": "assistant", "content": content})
-        return messages
-    return []
-
 def switch_to_thread(thread_id):
     st.session_state["current_thread_id"] = thread_id
     st.session_state["message_history"] = load_thread_messages(thread_id)
     st.session_state["chat_started"] = True
-
-def extract_first_5_words(text: str) -> str:
-    """Extract first 5 words from text and create a label"""
-    words = text.split()[:5]
-    label = " ".join(words)
-    if len(text.split()) > 5:
-        label += "..."
-    return label
-
-def update_thread_label(thread_id: str, user_input: str):
-    """Update thread label based on user input"""
-    label = extract_first_5_words(user_input)
-    save_thread_label(thread_id, label)
-    # Update the label in session state
-    for thread in st.session_state["threads"]:
-        if thread["id"] == thread_id:
-            thread["label"] = label
-            break
 
 def render_plots_grid(plots_metadata: dict):
     """Render plots in a 2-column grid."""
@@ -118,6 +81,30 @@ def render_plots_grid(plots_metadata: dict):
                     st.image(plot_info['path'], use_container_width=True)
                 except Exception as e:
                     st.error(f"Could not load plot: {e}")
+
+def render_report_tables(results: dict):
+    """Render monitor results as formatted tables."""
+    from monitoring.reports.formatter import get_report_table_data, has_issues
+    import pandas as pd
+
+    if has_issues(results):
+        with st.container(border=True):
+            st.markdown("### [ALERT] Issues Detected")
+            issues = []
+            for section, items in results.items():
+                if isinstance(items, dict):
+                    for key, value in items.items():
+                        if isinstance(value, dict) and "status" in value:
+                            if value["status"] in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]", "[SURGE]"]:
+                                issues.append({"Component": key, "Status": value["status"], "Details": value.get("error", "")})
+            if issues:
+                st.dataframe(pd.DataFrame(issues), use_container_width=True)
+
+    tables = get_report_table_data(results)
+    for table_name, data in tables.items():
+        with st.container():
+            st.subheader(table_name)
+            st.dataframe(pd.DataFrame(data), use_container_width=True)
 
 ##-------------------Session setup ------------------------------------
 
@@ -161,6 +148,115 @@ if "hitl_context" not in st.session_state:
 ## ------------------- Streamlit UI ---------------------
 with st.sidebar:
     st.title("💬 Chat Bot")
+    st.subheader("My Conversations")
+
+    if not st.session_state["chat_started"]:
+        if st.button("--START CHAT--", key="start_chat"):
+            thread_id = new_thread_id()
+            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
+            switch_to_thread(thread_id)
+            st.rerun()
+
+    if len(st.session_state["threads"]) > 0:
+        if st.button("➕ NEW CHAT", key="new_chat"):
+            thread_id = new_thread_id()
+            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
+            switch_to_thread(thread_id)
+            st.rerun()
+
+    if len(st.session_state["threads"]) > 0:
+        st.divider()
+        st.write("**Chat History**")
+
+        all_threads = list(reversed(st.session_state["threads"]))
+        recent_threads = all_threads[:7]
+        older_threads = all_threads[7:]
+
+        # Render 7 recent chats
+        for thread in recent_threads:
+            col1, col2, col3 = st.columns([5, 1, 1])
+            with col1:
+                if st.button(thread["label"], key=f"thread_{thread['id']}", use_container_width=True):
+                    switch_to_thread(thread["id"])
+                    st.rerun()
+            with col2:
+                if st.button("✏️", key=f"rename_{thread['id']}", help="Rename chat"):
+                    st.session_state[f"rename_mode_{thread['id']}"] = True
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"delete_{thread['id']}", help="Delete chat"):
+                    st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
+
+            # HITL Confirmation for chat deletion
+            if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
+                st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
+                col_confirm, col_cancel = st.columns([1, 1])
+                with col_confirm:
+                    if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}", type="primary"):
+                        delete_thread(thread["id"])
+                        st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
+                        if st.session_state["current_thread_id"] == thread["id"]:
+                            st.session_state["chat_started"] = False
+                            st.session_state["current_thread_id"] = None
+                            st.session_state["message_history"] = []
+                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                        st.rerun()
+                with col_cancel:
+                    if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}"):
+                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                        st.rerun()
+
+        # Older chats in scrollable expander
+        if older_threads:
+            with st.expander(f"More chats ({len(older_threads)})"):
+                for thread in older_threads:
+                    col1, col2, col3 = st.columns([5, 1, 1])
+                    with col1:
+                        if st.button(thread["label"], key=f"thread_{thread['id']}_old", use_container_width=True):
+                            switch_to_thread(thread["id"])
+                            st.rerun()
+                    with col2:
+                        if st.button("✏️", key=f"rename_{thread['id']}_old", help="Rename chat"):
+                            st.session_state[f"rename_mode_{thread['id']}"] = True
+                            st.rerun()
+                    with col3:
+                        if st.button("🗑️", key=f"delete_{thread['id']}_old", help="Delete chat"):
+                            st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
+
+                    # HITL Confirmation for chat deletion (older chats)
+                    if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
+                        st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
+                        col_confirm, col_cancel = st.columns([1, 1])
+                        with col_confirm:
+                            if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}_old", type="primary"):
+                                delete_thread(thread["id"])
+                                st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
+                                if st.session_state["current_thread_id"] == thread["id"]:
+                                    st.session_state["chat_started"] = False
+                                    st.session_state["current_thread_id"] = None
+                                    st.session_state["message_history"] = []
+                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                                st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}_old"):
+                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                                st.rerun()
+
+                    # Rename input field
+                    if st.session_state.get(f"rename_mode_{thread['id']}", False):
+                        new_label = st.text_input("New name:", value=thread["label"], key=f"rename_input_{thread['id']}")
+                        col_save, col_cancel = st.columns(2)
+                        with col_save:
+                            if st.button("Save", key=f"save_rename_{thread['id']}"):
+                                if new_label and new_label.strip():
+                                    rename_thread(thread["id"], new_label)
+                                    thread["label"] = new_label
+                                    st.session_state[f"rename_mode_{thread['id']}"] = False
+                                    st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"cancel_rename_{thread['id']}"):
+                                st.session_state[f"rename_mode_{thread['id']}"] = False
+                                st.rerun()
 
     # Show available tools
     st.subheader("📚 Available Tools")
@@ -169,74 +265,103 @@ with st.sidebar:
             st.caption(f"**{tool_name}**: {tool_desc}")
 
     st.divider()
-    st.subheader("📊 Data Analysis")
+    with st.expander("📊 Data Analysis", expanded=False):
+        st.subheader("Upload Files")
 
-    with st.expander("Upload CSV/Excel", expanded=False):
-        uploaded_file = st.file_uploader(
-            "Choose a CSV or Excel file",
-            type=["csv", "xlsx", "xls"],
-            key="csv_uploader"
-        )
+        col_csv, col_sql = st.columns(2)
 
-        if uploaded_file is not None:
-            col1, col2 = st.columns(2)
-            with col1:
-                dataset_name = st.text_input(
-                    "Dataset name",
-                    value=uploaded_file.name.rsplit('.', 1)[0],
-                    key="dataset_name_input"
-                )
-            with col2:
-                user_desc = st.text_input(
-                    "Description (optional)",
-                    placeholder="e.g., Q1 Sales Data",
-                    key="dataset_desc_input"
+        with col_csv:
+            with st.expander("CSV/Excel", expanded=False):
+                uploaded_file = st.file_uploader(
+                    "Choose a CSV or Excel file",
+                    type=["csv", "xlsx", "xls"],
+                    key="csv_uploader"
                 )
 
-            if st.button("Upload", key="upload_btn"):
-                if not dataset_name or not dataset_name.strip():
-                    st.error("Dataset name cannot be empty")
-                else:
-                    # Persistent spinner at top during entire upload process
-                    with st.spinner("⏳ Processing dataset..."):
-                        # Step 1: Save file (fast)
-                        st.info("💾 Saving file...")
-                        save_result = save_and_prepare_file(
-                            file_bytes=uploaded_file.getvalue(),
-                            file_name=uploaded_file.name,
-                            dataset_name=dataset_name
+                if uploaded_file is not None:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        dataset_name = st.text_input(
+                            "Dataset name",
+                            value=uploaded_file.name.rsplit('.', 1)[0],
+                            key="dataset_name_input"
+                        )
+                    with col2:
+                        user_desc = st.text_input(
+                            "Description (optional)",
+                            placeholder="e.g., Q1 Sales Data",
+                            key="dataset_desc_input"
                         )
 
-                        if save_result["status"] != "ok":
-                            st.error(f"✗ {save_result['message']}")
+                    if st.button("Upload", key="upload_btn"):
+                        if not dataset_name or not dataset_name.strip():
+                            st.error("Dataset name cannot be empty")
                         else:
-                            # Step 2: Analyze and ingest to RAG with live progress steps
-                            with st.status("📊 Analyzing and indexing data...", expanded=True) as status:
-                                try:
-                                    rag_result = ingest_file_to_rag(
-                                        file_path=save_result["file_path"],
-                                        dataset_name=dataset_name,
-                                        user_description=user_desc,
-                                        file_name=uploaded_file.name,
-                                        on_progress=st.write
-                                    )
+                            with st.spinner("⏳ Processing dataset..."):
+                                st.info("💾 Saving file...")
+                                save_result = save_and_prepare_file(
+                                    file_bytes=uploaded_file.getvalue(),
+                                    file_name=uploaded_file.name,
+                                    dataset_name=dataset_name
+                                )
 
-                                    if rag_result["status"] == "ok":
-                                        status.update(label="✓ Analysis complete", state="complete")
-                                        chunks = rag_result.get('chunks_created', 0)
-                                        st.success(f"✓ File saved: {save_result['rows']} rows, {save_result['cols']} columns")
-                                        st.success(f"✓ {rag_result['message']}")
-                                        st.info(f"Chunks: {chunks} | Numeric cols: {len(rag_result.get('numeric_columns', []))} | Categorical cols: {len(rag_result.get('categorical_columns', []))}")
-                                        st.rerun()
-                                    else:
-                                        status.update(label="✗ Analysis failed", state="error")
-                                        st.error(f"✗ {rag_result['message']}")
-                                except Exception as e:
-                                    status.update(label="✗ Error during analysis", state="error")
-                                    st.error(f"✗ Error: {str(e)}")
+                                if save_result["status"] != "ok":
+                                    st.error(f"✗ {save_result['message']}")
+                                else:
+                                    with st.status("📊 Analyzing and indexing data...", expanded=True) as status:
+                                        try:
+                                            rag_result = ingest_file_to_rag(
+                                                file_path=save_result["file_path"],
+                                                dataset_name=dataset_name,
+                                                user_description=user_desc,
+                                                file_name=uploaded_file.name,
+                                                on_progress=st.write
+                                            )
 
-    # Show available datasets with HITL controls
-    datasets = list_datasets()
+                                            if rag_result["status"] == "ok":
+                                                status.update(label="✓ Analysis complete", state="complete")
+                                                chunks = rag_result.get('chunks_created', 0)
+                                                st.success(f"✓ File saved: {save_result['rows']} rows, {save_result['cols']} columns")
+                                                st.success(f"✓ {rag_result['message']}")
+                                                st.info(f"Chunks: {chunks} | Numeric cols: {len(rag_result.get('numeric_columns', []))} | Categorical cols: {len(rag_result.get('categorical_columns', []))}")
+                                                st.rerun()
+                                            else:
+                                                status.update(label="✗ Analysis failed", state="error")
+                                                st.error(f"✗ {rag_result['message']}")
+                                        except Exception as e:
+                                            status.update(label="✗ Error during analysis", state="error")
+                                            st.error(f"✗ Error: {str(e)}")
+
+        with col_sql:
+            with st.expander("SQL", expanded=False):
+                uploaded_sql_file = st.file_uploader(
+                    "Choose a .sql file",
+                    type=["sql"],
+                    key="sql_uploader"
+                )
+
+                if uploaded_sql_file is not None:
+                    if st.button("Upload SQL File", key="upload_sql_btn"):
+                        with st.spinner("Processing SQL file..."):
+                            result = ingest_sql_file(
+                                file_bytes=uploaded_sql_file.getvalue(),
+                                file_name=uploaded_sql_file.name
+                            )
+
+                            if result["status"] == "ok":
+                                st.success(f"[OK] {result['message']}")
+                                st.info(f"Tables created: {', '.join(result['tables']) if result['tables'] else 'None'}")
+                                if result.get('warnings'):
+                                    st.warning(f"[WARNING] {len(result['warnings'])} statement(s) had issues")
+                                st.rerun()
+                            else:
+                                st.error(f"[ERROR] {result['message']}")
+
+        st.divider()
+        st.subheader("Datasets & Databases")
+
+        # Show available datasets with HITL controls
+        datasets = list_datasets()
     if datasets:
         st.subheader("📁 Available Datasets")
         for ds in datasets:
@@ -335,33 +460,6 @@ with st.sidebar:
                                 st.session_state[f"confirm_delete_dataset_{ds}"] = False
                                 st.rerun()
 
-    st.divider()
-    st.subheader("SQL Databases")
-
-    with st.expander("Upload SQL File", expanded=False):
-        uploaded_sql_file = st.file_uploader(
-            "Choose a .sql file",
-            type=["sql"],
-            key="sql_uploader"
-        )
-
-        if uploaded_sql_file is not None:
-            if st.button("Upload SQL File", key="upload_sql_btn"):
-                with st.spinner("Processing SQL file..."):
-                    result = ingest_sql_file(
-                        file_bytes=uploaded_sql_file.getvalue(),
-                        file_name=uploaded_sql_file.name
-                    )
-
-                    if result["status"] == "ok":
-                        st.success(f"[OK] {result['message']}")
-                        st.info(f"Tables created: {', '.join(result['tables']) if result['tables'] else 'None'}")
-                        if result.get('warnings'):
-                            st.warning(f"[WARNING] {len(result['warnings'])} statement(s) had issues")
-                        st.rerun()
-                    else:
-                        st.error(f"[ERROR] {result['message']}")
-
     # Show available databases
     databases = get_database_list()
     if databases:
@@ -427,74 +525,6 @@ with st.sidebar:
                             st.rerun()
 
     st.divider()
-    st.subheader("My Conversations")
-
-    if not st.session_state["chat_started"]:
-        if st.button("--START CHAT--", key="start_chat"):
-            thread_id = new_thread_id()
-            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
-            switch_to_thread(thread_id)
-            st.rerun()
-
-    if len(st.session_state["threads"]) > 0:
-        if st.button("➕ NEW CHAT", key="new_chat"):
-            thread_id = new_thread_id()
-            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
-            switch_to_thread(thread_id)
-            st.rerun()
-
-    if len(st.session_state["threads"]) > 0:
-        st.divider()
-        st.write("**Chat History**")
-        for thread in reversed(st.session_state["threads"]):
-            col1, col2, col3 = st.columns([5, 1, 1])
-            with col1:
-                if st.button(thread["label"], key=f"thread_{thread['id']}", use_container_width=True):
-                    switch_to_thread(thread["id"])
-                    st.rerun()
-            with col2:
-                if st.button("✏️", key=f"rename_{thread['id']}", help="Rename chat"):
-                    st.session_state[f"rename_mode_{thread['id']}"] = True
-                    st.rerun()
-            with col3:
-                if st.button("🗑️", key=f"delete_{thread['id']}", help="Delete chat"):
-                    st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
-
-            # HITL Confirmation for chat deletion
-            if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
-                st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
-                col_confirm, col_cancel = st.columns([1, 1])
-                with col_confirm:
-                    if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}", type="primary"):
-                        delete_thread(thread["id"])
-                        st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
-                        if st.session_state["current_thread_id"] == thread["id"]:
-                            st.session_state["chat_started"] = False
-                            st.session_state["current_thread_id"] = None
-                            st.session_state["message_history"] = []
-                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
-                        st.rerun()
-                with col_cancel:
-                    if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}"):
-                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
-                        st.rerun()
-
-            # Rename input field
-            if st.session_state.get(f"rename_mode_{thread['id']}", False):
-                new_label = st.text_input("New name:", value=thread["label"], key=f"rename_input_{thread['id']}")
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.button("Save", key=f"save_rename_{thread['id']}"):
-                        if new_label and new_label.strip():
-                            rename_thread(thread["id"], new_label)
-                            thread["label"] = new_label
-                            st.session_state[f"rename_mode_{thread['id']}"] = False
-                            st.rerun()
-                with col_cancel:
-                    if st.button("Cancel", key=f"cancel_rename_{thread['id']}"):
-                        st.session_state[f"rename_mode_{thread['id']}"] = False
-                        st.rerun()
-
     st.divider()
     st.subheader("Pipeline Monitor")
 
@@ -605,7 +635,8 @@ if start_btn and not st.session_state.get("monitor_running"):
 
         st.session_state["message_history"].append({
             "role": "assistant",
-            "content": f"Monitor started.\n\nInitial check:\n{report}"
+            "content": f"Monitor started.\n\nInitial check:\n{report}",
+            "has_report_table": True
         })
 
         st.session_state["awaiting_hitl"] = True
@@ -728,6 +759,8 @@ else:
     for messages in st.session_state["message_history"]:
         with st.chat_message(messages['role']):
             st.markdown(messages['content'])
+            if messages.get('has_report_table') and st.session_state.get("last_check_results"):
+                render_report_tables(st.session_state["last_check_results"])
 
     ## ------------------- HITL Flows ---------------------
 
@@ -775,7 +808,16 @@ else:
             report = format_daily_report(results)
 
             st.divider()
-            st.warning("Email Report Preview:")
+            st.warning("Email Report:")
+
+            # Ask for recipient email
+            recipient_email = st.text_input(
+                "Send report to:",
+                value=os.getenv("GMAIL_RECIPIENT", ""),
+                key="gmail_recipient_input",
+                help="Enter email address for the report"
+            )
+
             st.text_area(
                 "Report content:",
                 value=report[:500] + "..." if len(report) > 500 else report,
@@ -786,16 +828,19 @@ else:
             g_col1, g_col2 = st.columns(2)
             with g_col1:
                 if st.button("Send Email", key="h_send_email", type="primary"):
-                    from monitoring.alerts.gmail_alert import send_gmail_report
-                    send_gmail_report(results)
+                    if not recipient_email or "@" not in recipient_email:
+                        st.error("Please enter a valid email address")
+                    else:
+                        from monitoring.alerts.gmail_alert import send_gmail_report
+                        send_gmail_report(results, subject=f"[Report] Pipeline Status - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-                    st.session_state["message_history"].append({
-                        "role": "assistant",
-                        "content": "Report sent to your Gmail inbox."
-                    })
-                    st.session_state["awaiting_hitl"] = False
-                    st.session_state["hitl_context"] = None
-                    st.rerun()
+                        st.session_state["message_history"].append({
+                            "role": "assistant",
+                            "content": f"Report sent to {recipient_email}."
+                        })
+                        st.session_state["awaiting_hitl"] = False
+                        st.session_state["hitl_context"] = None
+                        st.rerun()
 
             with g_col2:
                 if st.button("Cancel", key="h_cancel_email"):
@@ -879,7 +924,9 @@ else:
             "send report now": "gmail_now",
             "send to slack": "slack_now",
             "show monitor status": "monitor_status",
-            "schedule report": "schedule_report"
+            "schedule report": "schedule_report",
+            "load report": "load_report",
+            "show report": "load_report"
         }
 
         def get_monitor_status() -> str:
@@ -906,7 +953,7 @@ else:
                     lines.append("\nCurrent Issues:")
                     lines.append(format_issue_alert(results))
                 else:
-                    lines.append("\nAll systems: [OK]")
+                    lines.append("\nAll systems work fine [OK]")
 
             return "\n".join(lines)
 
@@ -986,6 +1033,33 @@ else:
                     if st.session_state.get("monitor_running"):
                         st.session_state["awaiting_hitl"] = True
                         st.session_state["hitl_context"] = "schedule_report"
+                        command_executed = True
+                        break
+
+                elif action == "load_report":
+                    if st.session_state.get("monitor_running"):
+                        results = st.session_state.get("last_check_results")
+                        if results:
+                            st.session_state["message_history"].append({
+                                "role": "user",
+                                "content": user_input
+                            })
+                            st.session_state["message_history"].append({
+                                "role": "assistant",
+                                "content": format_daily_report(results),
+                                "has_report_table": True
+                            })
+                            command_executed = True
+                            break
+                    else:
+                        st.session_state["message_history"].append({
+                            "role": "user",
+                            "content": user_input
+                        })
+                        st.session_state["message_history"].append({
+                            "role": "assistant",
+                            "content": "Monitor is not running. Start monitoring first with 'Start Monitor' in sidebar."
+                        })
                         command_executed = True
                         break
 

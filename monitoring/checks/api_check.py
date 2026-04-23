@@ -41,7 +41,7 @@ def _retry_check(check_func, name: str) -> dict:
 
 def _check_duckduckgo():
     search = DuckDuckGoSearchRun()
-    search("test")
+    search.run("test")
 
 
 def _check_yfinance():

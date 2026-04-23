@@ -623,4 +623,145 @@ If all ✓, merge to main.
 - **Document as you go** — comments in each module
 - **No emojis in code** — Windows cp1252 (except in UI strings, those render in browser)
 
-This redesign makes the app **interview-ready** — clean, professional, easy to demo. Shows you can write production UI, not just backend plumbing.
+---
+
+## Implementation Summary — What Was Actually Done
+
+### ✅ Implemented (This Session)
+
+#### 1. **Chat History — 7 Recent + Scrollable Older**
+**PLANNED:** 7 recent chats visible, older chats in scrollable expander  
+**IMPLEMENTED:** ✅ Complete
+- 7 most recent chats shown in sidebar
+- Older chats in "More chats (N)" collapsible expander
+- Rename (✏️) and delete (🗑️) buttons for all chats
+- HITL confirmation for deletion
+
+#### 2. **Sidebar Organization — Conversations First**
+**PLANNED:** Chat History → Data → Monitor (in that order)  
+**IMPLEMENTED:** ✅ Conversations → Tools → Data → Monitor
+- Reordered sidebar so conversations appear first (most frequent access)
+- Available Tools moved to second position
+- Data Analysis and Databases stay together in third position
+- Pipeline Monitor at bottom (less frequent)
+
+#### 3. **Data Analysis & Databases — Unified Section**
+**PLANNED:** Unified dropzone, CSV and SQL together  
+**IMPLEMENTED:** ✅ Data Analysis dropdown
+- CSV/Excel upload in expander
+- SQL upload in expander (side-by-side layout)
+- Available datasets list (with visualization, edit, delete)
+- Available databases list (with schema viewer, sample queries)
+- All within one "📊 Data Analysis" dropdown
+
+#### 4. **Report Format — Tables Instead of Text**
+**PLANNED:** Not specified in original spec  
+**IMPLEMENTED:** ✅ Three formats:
+- **Streamlit**: Interactive dataframes with sorting/filtering
+- **Email (Gmail)**: HTML tables with color-coded status
+- **Slack**: Markdown-style monospace tables
+- Issues highlighted at top when detected
+
+#### 5. **Modular Frontend Structure**
+**PLANNED:** Split into 8 files (main, sidebar, chat_area, data_section, monitor_section, hitl_flows, utils)  
+**IMPLEMENTED:** ✅ Ultra-conservative approach
+- Created `frontend/` package with `__init__.py`
+- Extracted only small utilities to `frontend/utils.py`
+  - `new_thread_id()` 
+  - `load_thread_messages()`
+  - `extract_first_5_words()`
+  - `update_thread_label()`
+- Kept bulk logic in `frontend.py`
+- **Reason:** Comprehensive refactoring caused state management issues; decided to preserve stability
+
+#### 6. **HITL Flows — Enhanced with Recipient Input**
+**PLANNED:** HITL approval shown inline  
+**IMPLEMENTED:** ✅ Enhanced
+- Email report HITL now asks "Send report to:" with email input
+- Pre-fills with GMAIL_RECIPIENT env var
+- Validates email format before sending
+- Shows recipient confirmation in chat
+
+#### 7. **Monitor System — Status Indicators**
+**PLANNED:** Status: RUNNING / STOPPED  
+**IMPLEMENTED:** ✅ Enhanced
+- Real-time status display
+- Table-based detailed reports
+- Chat commands: `load report`, `show report`, `show monitor status`
+- "All systems work fine [OK]" message (only when truly healthy)
+- Proper detection of WARN, ALERT, DOWN, ERROR, SURGE statuses
+
+#### 8. **Bug Fixes**
+**IMPLEMENTED:** ✅
+- Fixed DuckDuckGo API check (`.run()` method call)
+- Removed duplicate SQL uploader (fixed StreamlitDuplicateElementKey error)
+- Fixed file monitoring false WARN (skip .gitkeep, removed size < 1KB threshold)
+
+### ❌ Not Implemented (Deferred or Unnecessary)
+
+#### 1. **Active Dataset Label in Corner**
+**PLANNED:** "📊 Active: sales.csv (CSV)" small label in main area top right  
+**DEFERRED:** Would require tracking active dataset state in more places
+- Works fine without it
+- Can add in future if needed
+
+#### 2. **Split into 8 Module Files**
+**DECISION:** Ultra-conservative approach preferred
+- Only extracted small utils to `frontend/utils.py`
+- Kept main logic in `frontend.py`
+- Reason: State management issues with comprehensive refactoring
+- Can expand later if maintainability becomes issue
+
+#### 3. **Visual Polish (Typography Hierarchy)**
+**DEFERRED:** Current styling is sufficient
+- Existing subheaders, captions, and layout provide hierarchy
+- Can enhance with CSS customization in future
+
+### 🎯 Architecture Decisions
+
+**Why Ultra-Conservative Refactoring?**
+- Streamlit state management is tightly coupled to component rendering order
+- Splitting into multiple modules changed execution flow, breaking state updates
+- Chat history, monitor state, HITL flows all depend on render order
+- Solution: Extract only pure utility functions, keep UI logic centralized
+
+**Why Table-Based Reports?**
+- Three different formats needed for three channels:
+  - Chat: interactive filtering/sorting (Streamlit dataframes)
+  - Email: styled, readable (HTML)
+  - Slack: text-friendly (markdown code blocks)
+- Provides better visual hierarchy than plain text
+
+**Why Conversations First in Sidebar?**
+- User interaction patterns: chat most frequent, then tools, then data, then monitor
+- "Recently accessed first" principle applies
+- Reduces clicks to get to conversation history
+
+### 📊 Current State
+
+**What Works:**
+- ✅ Chat with 7 recent + older threads
+- ✅ All 19 tools available and functional
+- ✅ CSV/Excel/SQL upload and analysis
+- ✅ Real-time monitor with table display
+- ✅ Email reports with HITL approval and recipient input
+- ✅ Slack alerts (automated)
+- ✅ File integrity monitoring (without false WARN)
+
+**What's Stable:**
+- ✅ No state management issues
+- ✅ No duplicate key errors
+- ✅ Sidebar properly organized
+- ✅ All existing functionality preserved
+- ✅ Ready for production use
+
+### 🚀 Future Enhancements
+
+If modularity becomes necessary later:
+1. Use Streamlit sessions more carefully
+2. Refactor one feature at a time (test each separately)
+3. Follow the original 8-module structure if comprehensive split needed
+4. Consider session_state architecture redesign
+
+**Conclusion:** Shipped working, stable, organized frontend. Chose pragmatism over perfect modularity.
+
