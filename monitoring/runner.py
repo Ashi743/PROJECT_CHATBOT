@@ -85,13 +85,13 @@ def start_background(selections: list, interval_minutes: int) -> threading.Threa
 
     schedule.every(interval_minutes).minutes.do(job)
 
-    thread = threading.Thread(
-        target=lambda: [
-            schedule.run_pending() or time.sleep(60)
-            for _ in iter(int, 1)
-        ],
-        daemon=True
-    )
+    def thread_loop():
+        from utils.runtime_state import get_flag
+        while not get_flag("monitor_stop_requested", False):
+            schedule.run_pending()
+            time.sleep(60)
+
+    thread = threading.Thread(target=thread_loop, daemon=True)
     thread.start()
     return thread
 

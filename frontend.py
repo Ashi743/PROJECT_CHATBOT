@@ -560,6 +560,14 @@ with st.sidebar:
 ## ------------------- Monitor Button Handlers ---------------------
 
 if start_btn and not st.session_state.get("monitor_running"):
+    # Stop previous thread if exists
+    prev_thread = st.session_state.get("monitor_thread")
+    if prev_thread is not None and prev_thread.is_alive():
+        from utils.runtime_state import set_flag
+        set_flag("monitor_stop_requested", True)
+        prev_thread.join(timeout=5)
+        set_flag("monitor_stop_requested", False)
+
     if not monitor_selection:
         st.error("Select at least one monitor.")
     else:
