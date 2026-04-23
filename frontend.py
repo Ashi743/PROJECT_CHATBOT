@@ -146,6 +146,115 @@ if "hitl_context" not in st.session_state:
 ## ------------------- Streamlit UI ---------------------
 with st.sidebar:
     st.title("💬 Chat Bot")
+    st.subheader("My Conversations")
+
+    if not st.session_state["chat_started"]:
+        if st.button("--START CHAT--", key="start_chat"):
+            thread_id = new_thread_id()
+            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
+            switch_to_thread(thread_id)
+            st.rerun()
+
+    if len(st.session_state["threads"]) > 0:
+        if st.button("➕ NEW CHAT", key="new_chat"):
+            thread_id = new_thread_id()
+            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
+            switch_to_thread(thread_id)
+            st.rerun()
+
+    if len(st.session_state["threads"]) > 0:
+        st.divider()
+        st.write("**Chat History**")
+
+        all_threads = list(reversed(st.session_state["threads"]))
+        recent_threads = all_threads[:7]
+        older_threads = all_threads[7:]
+
+        # Render 7 recent chats
+        for thread in recent_threads:
+            col1, col2, col3 = st.columns([5, 1, 1])
+            with col1:
+                if st.button(thread["label"], key=f"thread_{thread['id']}", use_container_width=True):
+                    switch_to_thread(thread["id"])
+                    st.rerun()
+            with col2:
+                if st.button("✏️", key=f"rename_{thread['id']}", help="Rename chat"):
+                    st.session_state[f"rename_mode_{thread['id']}"] = True
+                    st.rerun()
+            with col3:
+                if st.button("🗑️", key=f"delete_{thread['id']}", help="Delete chat"):
+                    st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
+
+            # HITL Confirmation for chat deletion
+            if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
+                st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
+                col_confirm, col_cancel = st.columns([1, 1])
+                with col_confirm:
+                    if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}", type="primary"):
+                        delete_thread(thread["id"])
+                        st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
+                        if st.session_state["current_thread_id"] == thread["id"]:
+                            st.session_state["chat_started"] = False
+                            st.session_state["current_thread_id"] = None
+                            st.session_state["message_history"] = []
+                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                        st.rerun()
+                with col_cancel:
+                    if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}"):
+                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                        st.rerun()
+
+        # Older chats in scrollable expander
+        if older_threads:
+            with st.expander(f"More chats ({len(older_threads)})"):
+                for thread in older_threads:
+                    col1, col2, col3 = st.columns([5, 1, 1])
+                    with col1:
+                        if st.button(thread["label"], key=f"thread_{thread['id']}_old", use_container_width=True):
+                            switch_to_thread(thread["id"])
+                            st.rerun()
+                    with col2:
+                        if st.button("✏️", key=f"rename_{thread['id']}_old", help="Rename chat"):
+                            st.session_state[f"rename_mode_{thread['id']}"] = True
+                            st.rerun()
+                    with col3:
+                        if st.button("🗑️", key=f"delete_{thread['id']}_old", help="Delete chat"):
+                            st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
+
+                    # HITL Confirmation for chat deletion (older chats)
+                    if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
+                        st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
+                        col_confirm, col_cancel = st.columns([1, 1])
+                        with col_confirm:
+                            if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}_old", type="primary"):
+                                delete_thread(thread["id"])
+                                st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
+                                if st.session_state["current_thread_id"] == thread["id"]:
+                                    st.session_state["chat_started"] = False
+                                    st.session_state["current_thread_id"] = None
+                                    st.session_state["message_history"] = []
+                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                                st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}_old"):
+                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                                st.rerun()
+
+            # Rename input field
+            if st.session_state.get(f"rename_mode_{thread['id']}", False):
+                new_label = st.text_input("New name:", value=thread["label"], key=f"rename_input_{thread['id']}")
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("Save", key=f"save_rename_{thread['id']}"):
+                        if new_label and new_label.strip():
+                            rename_thread(thread["id"], new_label)
+                            thread["label"] = new_label
+                            st.session_state[f"rename_mode_{thread['id']}"] = False
+                            st.rerun()
+                with col_cancel:
+                    if st.button("Cancel", key=f"cancel_rename_{thread['id']}"):
+                        st.session_state[f"rename_mode_{thread['id']}"] = False
+                        st.rerun()
 
     # Show available tools
     st.subheader("📚 Available Tools")
@@ -249,8 +358,8 @@ with st.sidebar:
         st.divider()
         st.subheader("Datasets & Databases")
 
-    # Show available datasets with HITL controls
-    datasets = list_datasets()
+        # Show available datasets with HITL controls
+        datasets = list_datasets()
     if datasets:
         st.subheader("📁 Available Datasets")
         for ds in datasets:
@@ -441,116 +550,6 @@ with st.sidebar:
                             st.rerun()
 
     st.divider()
-    st.subheader("My Conversations")
-
-    if not st.session_state["chat_started"]:
-        if st.button("--START CHAT--", key="start_chat"):
-            thread_id = new_thread_id()
-            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
-            switch_to_thread(thread_id)
-            st.rerun()
-
-    if len(st.session_state["threads"]) > 0:
-        if st.button("➕ NEW CHAT", key="new_chat"):
-            thread_id = new_thread_id()
-            st.session_state["threads"].append({"id": thread_id, "label": f"Chat {len(st.session_state['threads']) + 1}"})
-            switch_to_thread(thread_id)
-            st.rerun()
-
-    if len(st.session_state["threads"]) > 0:
-        st.divider()
-        st.write("**Chat History**")
-
-        all_threads = list(reversed(st.session_state["threads"]))
-        recent_threads = all_threads[:7]
-        older_threads = all_threads[7:]
-
-        # Render 7 recent chats
-        for thread in recent_threads:
-            col1, col2, col3 = st.columns([5, 1, 1])
-            with col1:
-                if st.button(thread["label"], key=f"thread_{thread['id']}", use_container_width=True):
-                    switch_to_thread(thread["id"])
-                    st.rerun()
-            with col2:
-                if st.button("✏️", key=f"rename_{thread['id']}", help="Rename chat"):
-                    st.session_state[f"rename_mode_{thread['id']}"] = True
-                    st.rerun()
-            with col3:
-                if st.button("🗑️", key=f"delete_{thread['id']}", help="Delete chat"):
-                    st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
-
-            # HITL Confirmation for chat deletion
-            if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
-                st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
-                col_confirm, col_cancel = st.columns([1, 1])
-                with col_confirm:
-                    if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}", type="primary"):
-                        delete_thread(thread["id"])
-                        st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
-                        if st.session_state["current_thread_id"] == thread["id"]:
-                            st.session_state["chat_started"] = False
-                            st.session_state["current_thread_id"] = None
-                            st.session_state["message_history"] = []
-                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
-                        st.rerun()
-                with col_cancel:
-                    if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}"):
-                        st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
-                        st.rerun()
-
-        # Older chats in scrollable expander
-        if older_threads:
-            with st.expander(f"More chats ({len(older_threads)})"):
-                for thread in older_threads:
-                    col1, col2, col3 = st.columns([5, 1, 1])
-                    with col1:
-                        if st.button(thread["label"], key=f"thread_{thread['id']}_old", use_container_width=True):
-                            switch_to_thread(thread["id"])
-                            st.rerun()
-                    with col2:
-                        if st.button("✏️", key=f"rename_{thread['id']}_old", help="Rename chat"):
-                            st.session_state[f"rename_mode_{thread['id']}"] = True
-                            st.rerun()
-                    with col3:
-                        if st.button("🗑️", key=f"delete_{thread['id']}_old", help="Delete chat"):
-                            st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
-
-                    # HITL Confirmation for chat deletion (older chats)
-                    if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
-                        st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
-                        col_confirm, col_cancel = st.columns([1, 1])
-                        with col_confirm:
-                            if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}_old", type="primary"):
-                                delete_thread(thread["id"])
-                                st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
-                                if st.session_state["current_thread_id"] == thread["id"]:
-                                    st.session_state["chat_started"] = False
-                                    st.session_state["current_thread_id"] = None
-                                    st.session_state["message_history"] = []
-                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
-                                st.rerun()
-                        with col_cancel:
-                            if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}_old"):
-                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
-                                st.rerun()
-
-            # Rename input field
-            if st.session_state.get(f"rename_mode_{thread['id']}", False):
-                new_label = st.text_input("New name:", value=thread["label"], key=f"rename_input_{thread['id']}")
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.button("Save", key=f"save_rename_{thread['id']}"):
-                        if new_label and new_label.strip():
-                            rename_thread(thread["id"], new_label)
-                            thread["label"] = new_label
-                            st.session_state[f"rename_mode_{thread['id']}"] = False
-                            st.rerun()
-                with col_cancel:
-                    if st.button("Cancel", key=f"cancel_rename_{thread['id']}"):
-                        st.session_state[f"rename_mode_{thread['id']}"] = False
-                        st.rerun()
-
     st.divider()
     st.subheader("Pipeline Monitor")
 
