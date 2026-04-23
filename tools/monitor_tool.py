@@ -157,24 +157,34 @@ def _run_monitoring(
 @tool
 def start_monitoring(
     commodity: str,
-    interval_minutes: int = 30
+    interval_minutes: int = 30,
+    confirm: bool = False
 ) -> str:
     """
     Start real-time monitoring for a commodity.
     Monitors web sentiment and price changes in background.
+    First call returns confirmation request; set confirm=True to actually start.
 
     Args:
         commodity: Commodity name (wheat, soy, corn, sugar, cotton, rice)
         interval_minutes: Check interval in minutes (default: 30)
+        confirm: Set to True to confirm and start monitoring (HITL)
 
     Returns:
-        Status message confirming monitoring has started
+        Confirmation request on first call, status message on confirmed call
     """
     commodity_lower = commodity.lower().strip()
 
+    if not confirm:
+        return (
+            f"[CONFIRM] Ready to start monitoring {commodity} every {interval_minutes} min. "
+            f"This will spawn a background thread. "
+            f"Call again with confirm=True to proceed."
+        )
+
     with _monitoring_lock:
         if commodity_lower in _monitoring_threads:
-            return f"Monitoring already active for {commodity}"
+            return f"[WARN] Monitoring already active for {commodity}"
 
         # Create stop event for clean shutdown
         stop_event = threading.Event()
