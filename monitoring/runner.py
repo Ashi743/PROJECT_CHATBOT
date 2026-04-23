@@ -1,6 +1,7 @@
 import schedule
 import time
 import logging
+import threading
 from monitoring.checks.commodity_check import check_commodities
 from monitoring.checks.file_check import check_files
 from monitoring.checks.api_check import check_apis
@@ -33,6 +34,66 @@ def run_quick_checks() -> dict:
     results["commodities"] = check_commodities()
     results["apis"] = check_apis()
     return results
+
+
+def run_selected_checks(selections: list) -> dict:
+    """
+    Run only selected checks (for frontend monitor control).
+
+    Args:
+        selections: List of monitor names from sidebar
+
+    Returns:
+        Dict with results for each selected monitor
+    """
+    results = {}
+    check_map = {
+        "Commodity Prices": check_commodities,
+        "Data Files": check_files,
+        "API Health": check_apis,
+        "Database Health": check_databases,
+        "ChromaDB": check_chromadb,
+        "App Health": check_app
+    }
+
+    for selection in selections:
+        if selection in check_map:
+            try:
+                results[selection] = check_map[selection]()
+            except Exception as e:
+                logger.error(f"Error running {selection}: {e}")
+                results[selection] = {"status": "[ERROR]", "error": str(e)}
+
+    return results
+
+
+def start_background(selections: list, interval_minutes: int) -> threading.Thread:
+    """
+    Start background monitoring in daemon thread (for frontend).
+
+    Args:
+        selections: List of monitor names
+        interval_minutes: Check interval in minutes
+
+    Returns:
+        Thread reference for tracking
+    """
+    def job():
+        results = run_selected_checks(selections)
+        if has_issues(results):
+            alert_issues(results)
+
+    schedule.every(interval_minutes).minutes.do(job)
+
+    thread = threading.Thread(
+        target=lambda: [
+            schedule.run_pending() or time.sleep(60)
+            for _ in iter(int, 1)
+        ],
+        daemon=True
+    )
+    thread.start()
+    return thread
 
 
 def daily_report_job():
