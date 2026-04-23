@@ -22,6 +22,7 @@ Triggers alerts on NEGATIVE sentiment + price drop > 1.5%.
 |-----------|------|----------|---------|-------------|
 | commodity | str | yes | none | Commodity to monitor (wheat, soy, corn, sugar, cotton, rice) |
 | interval_minutes | int | no | 30 | Check interval in minutes |
+| confirm | bool | no | False | HITL: Set to True to confirm and start monitoring |
 
 ### stop_monitoring
 | Parameter | Type | Required | Description |
@@ -74,8 +75,9 @@ Each interval:
 - langchain_core.tools
 
 ## HITL
-No for background monitoring
-YES for manual reporting (alert_callback requires user action)
+YES for start_monitoring: Requires two-step confirmation (confirm=True) before spawning background thread.
+First call returns confirmation request; second call with confirm=True actually starts.
+No HITL for get_active_monitors, get_monitoring_results, stop_monitoring (read-only operations).
 
 ## Chaining
 Combines with:
@@ -92,7 +94,10 @@ Combines with:
 ## Test Command
 python -c "
 from tools.monitor_tool import start_monitoring, get_active_monitors
+# First call: confirmation request (HITL)
 print(start_monitoring.invoke({'commodity': 'wheat', 'interval_minutes': 30}))
+# Second call: confirm=True to actually start
+print(start_monitoring.invoke({'commodity': 'wheat', 'interval_minutes': 30, 'confirm': True}))
 print(get_active_monitors.invoke({}))
 "
 

@@ -6,6 +6,9 @@ import seaborn as sns
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 PLOTS_DIR = Path(__file__).parent.parent / "data" / "plots"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -220,8 +223,8 @@ class PlotGenerator:
                 'date_col': date_col,
                 'value_col': value_col
             }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to generate time series plot: {e}")
 
     def _generate_box_plots(self, numeric_cols: list[str]):
         """Generate box plots for columns with outliers."""

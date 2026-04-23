@@ -1,11 +1,17 @@
 from monitoring.reports.formatter import format_daily_report
 from datetime import datetime
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
+GMAIL_RECIPIENT = os.getenv("GMAIL_RECIPIENT")
+
 
 def send_gmail_report(results: dict, subject: str = None):
+    if not GMAIL_RECIPIENT:
+        return {"status": "error", "message": "GMAIL_RECIPIENT not set in .env"}
+
     if not subject:
         subject = f"[Report] Pipeline Status - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
@@ -19,7 +25,7 @@ def send_gmail_report(results: dict, subject: str = None):
             return {"status": "skipped", "reason": "Gmail not configured"}
 
         result = send_email.invoke({
-            "to": "ashishdangwal97@gmail.com",
+            "to": GMAIL_RECIPIENT,
             "subject": subject,
             "message": body
         })

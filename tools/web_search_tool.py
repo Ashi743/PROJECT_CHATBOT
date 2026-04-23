@@ -20,7 +20,7 @@ def web_search(query: str, num_results: int = 5) -> str:
     try:
         # Validate inputs
         if not query or not query.strip():
-            return "Error: Please provide a search query."
+            return "[ERROR] Please provide a search query."
 
         num_results = max(1, min(int(num_results), 10))  # Clamp between 1-10
 

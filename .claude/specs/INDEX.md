@@ -22,9 +22,12 @@ Read relevant specs before building or modifying code.
 
 | Topic | Spec File | Status | Purpose |
 |-------|-----------|--------|---------|
+| Paths | architecture/paths-spec.md | [DONE] | Central path constants |
+| Logging | architecture/logging-spec.md | [DONE] | Centralized logging config |
+| Rate Limit | architecture/rate-limit-spec.md | [DONE] | Token-bucket rate limiter |
 | RAG | architecture/rag-spec.md | [PLANNED] | Vector DB for analysis insights |
 | Redis | architecture/redis-spec.md | [PLANNED] | Caching tool results |
-| HITL | architecture/hitl-spec.md | [PLANNED] | Human approval workflow |
+| HITL | architecture/hitl-spec.md | [DONE] | Human approval workflow |
 
 ## Pipelines (Read before implementing background processes)
 
@@ -73,9 +76,11 @@ Read relevant specs before building or modifying code.
 
 ## Branch Guide
 - main: Stable, production-ready
-- feat/nlp-monitoring: Current feature branch (will merge after testing)
-- feat/pipeline-monitor: Next feature (blocked on nlp-monitoring merge)
-- feat/redis-caching: After pipeline-monitor merged
+- feat/production-fixes: Current (hardening, security, stability fixes — ready for merge)
+- feat/c-rag: Next (Corrective RAG with relevance grader)
+- feat/memory: User/context memory system
+- feat/frontend-redesign: Split frontend into modules + UI redesign
+- feat/docker: Containerization + Redis caching
 
 ## When to Add Specs
 - New tool created → Add tool/{name}-spec.md

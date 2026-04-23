@@ -24,7 +24,7 @@ def calculator(expression: str) -> str:
         expression = expression.strip()
 
         if not expression:
-            return "Error: Please provide a mathematical expression."
+            return "[ERROR] Please provide a mathematical expression."
 
         # Create a safe namespace with math functions
         safe_dict = {
@@ -60,7 +60,7 @@ def calculator(expression: str) -> str:
         # Validate expression contains only safe characters
         allowed_chars = set('0123456789+-*/.%() abcdefghijklmnopqrstuvwxyzπe., ')
         if not all(c in allowed_chars for c in expression.lower()):
-            return "Error: Expression contains invalid characters."
+            return "[ERROR] Expression contains invalid characters."
 
         # Evaluate the expression
         result = eval(expression, {"__builtins__": {}}, safe_dict)
@@ -78,12 +78,12 @@ def calculator(expression: str) -> str:
             return f"Result: {result}"
 
     except ZeroDivisionError:
-        return "Error: Division by zero is not allowed."
+        return "[ERROR] Division by zero is not allowed."
     except ValueError as e:
-        return f"Error: Invalid value (e.g., sqrt of negative, invalid trig input). Details: {str(e)}"
+        return f"[ERROR] Invalid value (e.g., sqrt of negative, invalid trig input). Details: {str(e)}"
     except SyntaxError:
-        return "Error: Invalid mathematical expression syntax."
+        return "[ERROR] Invalid mathematical expression syntax."
     except NameError as e:
-        return f"Error: Unknown function or variable. {str(e)}"
+        return f"[ERROR] Unknown function or variable. {str(e)}"
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"[ERROR] {str(e)}"

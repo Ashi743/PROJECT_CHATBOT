@@ -1,14 +1,20 @@
-from langchain.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, ToolMessage, AIMessage
+from langchain_core.messages import BaseMessage, ToolMessage, AIMessage, HumanMessage
 
 from langgraph.graph import StateGraph, START ,END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
+import atexit
+import signal
+import logging
 
 from typing import TypedDict ,Annotated
 from dotenv import load_dotenv
+from utils.logging_config import setup_logging
+
+# Set up logging
+setup_logging()
 
 from tools.stock_tool import get_stock_price
 from tools.world_time_tool import get_world_time, get_world_time_multiple, get_holidays, get_upcoming_holidays, list_supported_countries
@@ -24,9 +30,9 @@ from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
 
-# Cost optimization: Use gpt-4o-mini for general chat, gpt-4o for heavy analysis
+# Dual-LLM: gpt-4o-mini for general chat, gpt-4o for analysis (handles longer outputs)
 llm_model = ChatOpenAI(model="gpt-4o-mini")  # Main chatbot (cost-effective)
-analysis_llm = ChatOpenAI(model="gpt-4o")    # Heavy analysis interpretation (high-quality)
+analysis_llm = ChatOpenAI(model="gpt-4o")    # Analysis interpretation (no token limits)
 
 # Combine base tools with Gmail tools, data analysis tools, NLP, monitoring, alerting, and calendar tools
 base_tools = [
@@ -43,30 +49,51 @@ class chatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
-def _is_analysis_result(messages: list[BaseMessage]) -> bool:
-    """Check if the last message is a tool result from analysis tools"""
+def _message_content_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(str(item) for item in content)
+    if content is None:
+        return ""
+    return str(content)
+
+def _requires_analysis_llm(messages: list[BaseMessage]) -> bool:
+    """Check if conversation needs analysis LLM (keyword or recent analysis result)"""
     if not messages:
         return False
+
+    # Check last message for analysis keywords or large data
     last_msg = messages[-1]
-    if not isinstance(last_msg, ToolMessage):
-        return False
-    # Analysis tools produce larger, data-heavy results
-    content_str = str(last_msg.content)
-    return len(content_str) > 200 or any(
-        keyword in content_str.lower()
-        for keyword in ['correlation', 'histogram', 'plot', 'statistic', 'summary', '[PLOT_IMAGE']
-    )
+    analysis_keywords = {
+        "analyze", "interpret", "explain", "insight", "trend",
+        "correlate", "compare", "anomaly", "outlier", "statistic",
+        "summary", "pattern", "forecast", "predict"
+    }
+
+    # If last message is tool result from analysis tools
+    if isinstance(last_msg, ToolMessage):
+        content_str = _message_content_text(last_msg.content).lower()
+        # Large results or analysis outputs need gpt-4o
+        return len(content_str) > 200 or any(
+            kw in content_str for kw in ['correlation', 'histogram', 'plot', 'statistic']
+        )
+
+    # If last message is user question with analysis keywords
+    if isinstance(last_msg, HumanMessage):
+        text = _message_content_text(last_msg.content).lower()
+        return any(kw in text for kw in analysis_keywords)
+
+    return False
 
 
 def chat_node(state:chatState):
     message= state["messages"]
-    # Use gpt-4o for interpreting analysis results, gpt-4o-mini for regular chat
-    if _is_analysis_result(message):
-        # Heavy analysis interpretation uses gpt-4o
+    # Route to appropriate LLM based on analysis keywords or recent results
+    if _requires_analysis_llm(message):
         analysis_llm_with_tools = analysis_llm.bind_tools(tools)
         response = analysis_llm_with_tools.invoke(message)
     else:
-        # Regular chat uses cheaper gpt-4o-mini
         response = llm_with_tools.invoke(message)
     return {'messages': [response]}
 
@@ -135,6 +162,21 @@ def should_use_tools(state:chatState):
 conn= sqlite3.connect(database= "chat_memory.db", check_same_thread=False)
 checkpointer= SqliteSaver(conn)
 checkpointer.setup()  # Initialize database schema
+
+def _graceful_shutdown(*args):
+    try:
+        if hasattr(checkpointer, "conn") and checkpointer.conn is not None:
+            checkpointer.conn.commit()
+            checkpointer.conn.close()
+    except Exception as e:
+        print(f"[ERROR] Shutdown error: {e}")
+
+atexit.register(_graceful_shutdown)
+try:
+    signal.signal(signal.SIGTERM, _graceful_shutdown)
+except ValueError:
+    # Signal handlers only work in main thread (Streamlit runs in worker thread)
+    pass
 ## --------------------------------------------------------------
 
 # Create thread_metadata table for storing custom labels

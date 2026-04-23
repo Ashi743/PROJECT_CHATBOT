@@ -17,7 +17,7 @@ Most chatbots lose context the moment a request completes. This project uses **L
 User (Streamlit UI)
         │
         ▼
-  frontend.py  ──── thread_id ────▶  InMemorySaver (checkpointer)
+  frontend.py  ──── thread_id ────▶  SqliteSaver (checkpointer)
         │                                    │
         ▼                                    ▼
   backend.py                        LangGraph StateGraph
@@ -62,7 +62,7 @@ User (Streamlit UI)
 
 ## Setup
 
-**Prerequisites:** Python 3.9+, OpenAI API key
+**Prerequisites:** Python 3.11+, OpenAI API key
 
 ```bash
 # 1. Clone

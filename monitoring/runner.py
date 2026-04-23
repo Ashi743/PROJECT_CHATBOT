@@ -2,6 +2,7 @@ import schedule
 import time
 import logging
 import threading
+from utils.logging_config import setup_logging
 from monitoring.checks.commodity_check import check_commodities
 from monitoring.checks.file_check import check_files
 from monitoring.checks.api_check import check_apis
@@ -11,10 +12,8 @@ from monitoring.checks.app_check import check_app
 from monitoring.alerts.slack_alert import alert_issues, alert_daily, alert_all_clear
 from monitoring.reports.formatter import has_issues
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Set up centralized logging
+setup_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -85,13 +84,13 @@ def start_background(selections: list, interval_minutes: int) -> threading.Threa
 
     schedule.every(interval_minutes).minutes.do(job)
 
-    thread = threading.Thread(
-        target=lambda: [
-            schedule.run_pending() or time.sleep(60)
-            for _ in iter(int, 1)
-        ],
-        daemon=True
-    )
+    def thread_loop():
+        from utils.runtime_state import get_flag
+        while not get_flag("monitor_stop_requested", False):
+            schedule.run_pending()
+            time.sleep(60)
+
+    thread = threading.Thread(target=thread_loop, daemon=True)
     thread.start()
     return thread
 

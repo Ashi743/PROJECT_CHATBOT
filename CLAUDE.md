@@ -14,7 +14,7 @@ Multi-tool AI assistant with monitoring, analysis, and alerting.
 - Streamlit frontend with streaming
 - OpenAI (ChatOpenAI)
 - ChromaDB (RAG)
-- MySQL (data analysis)
+- SQLite (data analysis)
 - Redis (caching — planned)
 
 ## Alert System
@@ -28,9 +28,11 @@ Multi-tool AI assistant with monitoring, analysis, and alerting.
 
 ## Branch Strategy
 - main                   : stable, always runnable
-- feat/nlp-monitoring    : current branch
-- feat/pipeline-monitor  : next after nlp-monitoring merged
-- feat/redis-caching     : after pipeline-monitor merged
+- feat/production-fixes  : current branch (hardening, no new features)
+- feat/c-rag             : next (corrective RAG)
+- feat/memory            : user/context memory system
+- feat/frontend-redesign : split frontend into modules
+- feat/docker            : containerization + Redis
 - never merge broken code to main
 - always test before committing
 

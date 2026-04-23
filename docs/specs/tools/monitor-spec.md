@@ -22,6 +22,7 @@ Triggers alerts on NEGATIVE sentiment + price drop > 1.5%.
 |-----------|------|----------|---------|-------------|
 | commodity | str | yes | none | Commodity to monitor (wheat, soy, corn, sugar, cotton, rice) |
 | interval_minutes | int | no | 30 | Check interval in minutes |
+| confirm | bool | no | False | HITL: Set to True to confirm and start monitoring |
 
 ### stop_monitoring
 | Parameter | Type | Required | Description |
