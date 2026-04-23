@@ -7,9 +7,14 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
 import atexit
 import signal
+import logging
 
 from typing import TypedDict ,Annotated
 from dotenv import load_dotenv
+from utils.logging_config import setup_logging
+
+# Set up logging
+setup_logging()
 
 from tools.stock_tool import get_stock_price
 from tools.world_time_tool import get_world_time, get_world_time_multiple, get_holidays, get_upcoming_holidays, list_supported_countries
@@ -44,6 +49,15 @@ class chatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
+def _message_content_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(str(item) for item in content)
+    if content is None:
+        return ""
+    return str(content)
+
 def _requires_analysis_llm(messages: list[BaseMessage]) -> bool:
     """Check if conversation needs analysis LLM (keyword or recent analysis result)"""
     if not messages:
@@ -59,7 +73,7 @@ def _requires_analysis_llm(messages: list[BaseMessage]) -> bool:
 
     # If last message is tool result from analysis tools
     if isinstance(last_msg, ToolMessage):
-        content_str = str(last_msg.content).lower()
+        content_str = _message_content_text(last_msg.content).lower()
         # Large results or analysis outputs need gpt-4o
         return len(content_str) > 200 or any(
             kw in content_str for kw in ['correlation', 'histogram', 'plot', 'statistic']
@@ -67,7 +81,7 @@ def _requires_analysis_llm(messages: list[BaseMessage]) -> bool:
 
     # If last message is user question with analysis keywords
     if isinstance(last_msg, HumanMessage):
-        text = (last_msg.content or "").lower()
+        text = _message_content_text(last_msg.content).lower()
         return any(kw in text for kw in analysis_keywords)
 
     return False

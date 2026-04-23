@@ -2,6 +2,7 @@ import schedule
 import time
 import logging
 import threading
+from utils.logging_config import setup_logging
 from monitoring.checks.commodity_check import check_commodities
 from monitoring.checks.file_check import check_files
 from monitoring.checks.api_check import check_apis
@@ -11,10 +12,8 @@ from monitoring.checks.app_check import check_app
 from monitoring.alerts.slack_alert import alert_issues, alert_daily, alert_all_clear
 from monitoring.reports.formatter import has_issues
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Set up centralized logging
+setup_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
