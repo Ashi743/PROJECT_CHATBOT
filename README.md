@@ -1,123 +1,183 @@
-<img width="1280" height="734" alt="chatbot_stream" src="https://github.com/user-attachments/assets/456399ce-0821-4063-bfb2-ab7f742c814d" />
-# LangGraph Conversational Chatbot
+# Chat Bot — LangGraph + Streamlit
 
-> A stateful, multi-turn chatbot with real-time streaming, thread management, and persistent conversation history — built with LangChain, LangGraph, and OpenAI.
+Multi-tool AI assistant with monitoring, analysis, and real-time alerts.
 
----
-
-## Why LangGraph?
-
-Most chatbots lose context the moment a request completes. This project uses **LangGraph's `StateGraph`** to model conversation as a persistent state machine — each message appended to a typed state object (`ChatState`), with a checkpointer ensuring threads survive across interactions. The design intentionally separates graph logic (`backend.py`) from the UI layer (`frontend.py`), making it easy to swap in SQLite or Redis persistence without touching the frontend.
-
----
-
-## Architecture
-
-```
-User (Streamlit UI)
-        │
-        ▼
-  frontend.py  ──── thread_id ────▶  SqliteSaver (checkpointer)
-        │                                    │
-        ▼                                    ▼
-  backend.py                        LangGraph StateGraph
-   chatbot.stream()                  ┌─────────────────┐
-        │                            │   START         │
-        ▼                            │     │           │
-  ChatOpenAI (GPT)                   │   chat_node     │
-        │                            │     │           │
-        └────── streaming ──────────▶│   END           │
-                                     └─────────────────┘
-```
-
-**Key design decisions:**
-- `add_messages` reducer on `ChatState` — appends new messages rather than replacing, enabling full conversation memory
-- `stream_mode="messages"` — tokens stream to the UI in real-time as the LLM generates them
-- UUID-based thread IDs — each conversation is fully isolated; switching threads restores prior history from the checkpointer
-
----
-
-## Features
-
-- **Stateful Conversations** — LangGraph `StateGraph` manages message history across turns
-- **Real-time Streaming** — responses appear token-by-token via `chatbot.stream()`
-- **Multi-thread Support** — create and switch between independent conversation threads
-- **Thread History Restore** — switching to a past thread reloads messages from the checkpointer
-- **Clean UI** — Streamlit-based chat interface with sidebar thread management
-
----
-
-## Project Structure
-
-```
-.
-├── backend.py          # LangGraph graph definition, ChatState, checkpointer
-├── frontend.py         # Streamlit UI, thread management, streaming integration
-├── demo_chat.ipynb     # Notebook demo of core graph logic
-├── requirements.txt    # Dependencies
-└── .env                # API keys (not tracked)
-```
-
----
-
-## Setup
-
-**Prerequisites:** Python 3.11+, OpenAI API key
+## 🚀 Quick Start
 
 ```bash
-# 1. Clone
-git clone https://github.com/Ashi743/PROJECT_CHATBOT.git
-cd PROJECT_CHATBOT
-
-# 2. Create virtual environment
-python -m venv myvenv
-myvenv\Scripts\activate       # Windows
-source myvenv/bin/activate    # macOS/Linux
-
-# 3. Install dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# 4. Set up environment
-echo OPENAI_API_KEY=your_key_here > .env
-
-# 5. Run
-python -m streamlit run frontend.py
+# Run the app
+streamlit run frontend.py
 ```
 
-App available at `http://localhost:8501`
+## 📋 Features
 
----
+### Chat Interface
+- Multi-thread chat history with persistent storage
+- 7 recent chats visible + older chats in scrollable expander
+- Real-time message streaming with tool execution
+- Support for 19+ AI tools (search, analysis, stocks, commodities, email, etc.)
 
-## Dependencies
+### Data Management
+- **Unified Data Section** — Upload CSV, Excel, SQL files in one dropdown
+- **CSV/Excel Analysis** — Pandas-powered data analysis with visualizations
+- **SQL Databases** — Upload .sql files, run SELECT queries
+- **ChromaDB RAG** — Semantic search across uploaded datasets
 
-| Package | Purpose |
-|---|---|
-| `langgraph` | State machine graph for conversation flow |
-| `langchain-core` | Message types, runnables |
-| `langchain-openai` | OpenAI LLM integration |
-| `streamlit` | Web UI and streaming rendering |
-| `python-dotenv` | Environment variable management |
-| `chromadb` | Vector store (for upcoming RAG integration) |
+### Monitoring & Alerts
+- **Real-time Monitor** — Check commodity prices, API health, file integrity, database health
+- **Table-Based Reports** — System status displayed as organized dataframes
+- **Multi-Channel Alerts** — Send reports to Slack (automated) or Gmail (HITL approval)
+- **Scheduled Reports** — Set daily report delivery times
+- **Issue Detection** — Tracks WARN, ALERT, DOWN, ERROR, SURGE statuses
 
----
+### HITL (Human-in-the-Loop)
+- Email report approval with recipient input
+- CSV upload confirmation
+- Chat deletion confirmation
+- Data visualization approval workflow
 
-## Roadmap
+## 🏗️ Architecture
 
-- [ ] SQLite persistence — conversation history survives app restarts
-- [ ] RAG integration — ChromaDB already installed, documents Q&A planned
-- [ ] Human-in-the-loop (HITL) — interrupt graph execution for user approval steps
-- [ ] Multi-model support — swap between OpenAI, Claude, and local models
-- [ ] Docker deployment
+### Tech Stack
+- **LangGraph** — Agentic chatbot with SqliteSaver state management
+- **Streamlit** — Interactive web UI with real-time streaming
+- **ChromaDB** — Vector database for semantic search
+- **SQLite** — Local data analysis database
+- **OpenAI** — LLM backend
+- **Pandas** — Data analysis
 
----
+## 📊 Sidebar Organization
 
-## Author
+1. **My Conversations**
+   - 7 recent chats (always visible)
+   - "More chats" expander for older threads
+   - NEW CHAT button
 
-**Ashish Dangwal**  
-[GitHub: Ashi743](https://github.com/Ashi743)
+2. **Available Tools**
+   - 19 tools list (collapsible)
+   - Quick reference for AI capabilities
 
----
+3. **Data Analysis**
+   - CSV/Excel upload
+   - SQL upload
+   - Available datasets list
+   - Available databases with schema
 
-## License
+4. **Pipeline Monitor**
+   - Monitor selection (Commodity Prices, API Health, etc.)
+   - Check interval setting
+   - Start/Stop controls
+   - Report actions (Email/Slack + scheduling)
 
-MIT
+## 🔍 Monitor System
+
+### Checks Run
+- **Commodity Prices** — Wheat, soy, corn, sugar price tracking
+- **API Health** — DuckDuckGo, yfinance, Calendarific, Gmail SMTP, Slack
+- **Data Files** — File integrity and age monitoring
+- **Database Health** — SQLite database status and size
+- **ChromaDB** — Vector DB document count and disk usage
+- **App Health** — Memory, CPU, disk utilization
+
+### Report Format
+Reports display as organized tables showing:
+- Issues Table (WARN, ALERT, DOWN, ERROR, SURGE)
+- Commodities Table (price changes)
+- APIs Table (response times)
+- Files Table (problem files only)
+- Databases Table (size, row counts)
+- ChromaDB Table (document count, disk)
+- App Health Table (resource usage)
+
+### Status Indicators
+- `[OK]` — System healthy
+- `[WARN]` — Minor issue (permissions, stale data)
+- `[ALERT]` — Critical alert
+- `[DOWN]` — Service unavailable
+- `[ERROR]` — Error state
+- `[SURGE]` — Price surge detected
+- `[STALE]` — Data older than 48 hours
+
+## 💬 Chat Commands
+
+### Monitor Commands
+- `show monitor status` — Current monitoring state
+- `load report` / `show report` — Display latest monitor results as tables
+- `stop monitoring` — Stop all monitors
+- `pause reports` — Temporarily stop scheduled reports
+- `send report now` — HITL approval → send via Gmail
+- `send to slack` — Send report to Slack immediately
+- `schedule report` — HITL approval → set daily report time
+
+## 🎯 Recent Implementation (This Session)
+
+### Completed Features
+- ✅ Minimal modular refactoring (frontend/utils.py)
+- ✅ 7 recent chats + scrollable older chats expander
+- ✅ Reorganized sidebar (Conversations → Tools → Data → Monitor)
+- ✅ Table-based monitor reports (HTML email, Slack markdown, Streamlit dataframes)
+- ✅ "All systems work fine" message only when truly healthy
+- ✅ Fixed DuckDuckGo API check
+- ✅ Load report chat commands with table display
+- ✅ HITL email input for "Send report to:" confirmation
+- ✅ Removed duplicate SQL uploader (fixed key collision)
+- ✅ Fixed false WARN on small files (.gitkeep, JSON state files)
+
+### Architecture Decisions Made
+
+**Frontend Refactoring Strategy**
+- Chose ultra-conservative modular approach
+- Only extracted small utility functions to frontend/utils.py
+- Reason: Comprehensive refactoring caused state management issues
+- Preserves stability while improving code organization
+- Can expand to full FRONTEND_REDESIGN_PROMPT structure in future if needed
+
+**Table-Based Reporting**
+- Implemented three report formats:
+  - HTML tables for email (styled, color-coded)
+  - Markdown tables for Slack (monospace code blocks)
+  - Interactive Streamlit dataframes for chat display
+- Reason: Different channels have different formatting capabilities
+
+**Sidebar Organization**
+- Changed order to: Conversations → Tools → Data → Monitor
+- 7 recent chats visible + scrollable expander for older
+- Reason: Users access conversations most frequently, then tools, then data
+
+**File Monitoring**
+- Skip .gitkeep files entirely
+- Removed size < 1KB WARN threshold
+- Reason: Small config files are normal and healthy
+- Decision: Only warn on unreadable [ERROR] or stale [STALE] files
+
+## 🧪 Testing
+
+Run the app and verify:
+- [x] Sidebar shows correct section order
+- [x] 7 recent chats visible, older chats in expander
+- [x] Chat history saves and loads
+- [x] Monitor start/stop buttons work
+- [x] Monitor reports display as tables
+- [x] Gmail report HITL shows email input
+- [x] File monitor shows no false WARN for small files
+- [x] Load report command displays table format
+
+## 📝 Configuration
+
+Set environment variables in `.env`:
+
+```env
+OPENAI_API_KEY=sk-...
+GMAIL_USER=your-email@gmail.com
+GMAIL_RECIPIENT=recipient@gmail.com
+SLACK_WEBHOOK_URL=https://hooks.slack.com/...
+CALENDARIFIC_API_KEY=...
+```
+
+## 📚 Documentation
+
+- **FRONTEND_REDESIGN_PROMPT.md** — Updated spec showing planned vs. implemented features
+- **.claude/specs/** — Detailed tool, pipeline, and monitoring specifications
