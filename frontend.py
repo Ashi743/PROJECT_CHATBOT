@@ -9,6 +9,7 @@ from tools.sql_file_ingest_tool import ingest_sql_file, get_database_list, get_d
 from monitoring.reports.formatter import format_daily_report, has_issues, format_issue_alert
 from monitoring.alerts.slack_alert import alert_daily
 from monitoring.alerts.gmail_alert import send_gmail_report
+from frontend.utils import new_thread_id, load_thread_messages, extract_first_5_words, update_thread_label
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -44,50 +45,10 @@ AVAILABLE_TOOLS = {
 
 ## ----------------- utility functions for thread management -----------------
 
-
-def new_thread_id():
-    return str(uuid4())
-
-def load_thread_messages(thread_id):
-
-    CONFIG = RunnableConfig(configurable={"thread_id": thread_id})
-
-    state = chatbot.get_state(config=CONFIG)
-    if state and state.values.get("messages"):
-        messages = []
-        for msg in state.values["messages"]:
-            # Ensure content is always a string
-            content = msg.content if isinstance(msg.content, str) else str(msg.content)
-
-            if isinstance(msg, HumanMessage):
-                messages.append({"role": "user", "content": content})
-            elif isinstance(msg, AIMessage):
-                messages.append({"role": "assistant", "content": content})
-        return messages
-    return []
-
 def switch_to_thread(thread_id):
     st.session_state["current_thread_id"] = thread_id
     st.session_state["message_history"] = load_thread_messages(thread_id)
     st.session_state["chat_started"] = True
-
-def extract_first_5_words(text: str) -> str:
-    """Extract first 5 words from text and create a label"""
-    words = text.split()[:5]
-    label = " ".join(words)
-    if len(text.split()) > 5:
-        label += "..."
-    return label
-
-def update_thread_label(thread_id: str, user_input: str):
-    """Update thread label based on user input"""
-    label = extract_first_5_words(user_input)
-    save_thread_label(thread_id, label)
-    # Update the label in session state
-    for thread in st.session_state["threads"]:
-        if thread["id"] == thread_id:
-            thread["label"] = label
-            break
 
 def render_plots_grid(plots_metadata: dict):
     """Render plots in a 2-column grid."""
@@ -118,6 +79,30 @@ def render_plots_grid(plots_metadata: dict):
                     st.image(plot_info['path'], use_container_width=True)
                 except Exception as e:
                     st.error(f"Could not load plot: {e}")
+
+def render_report_tables(results: dict):
+    """Render monitor results as formatted tables."""
+    from monitoring.reports.formatter import get_report_table_data, has_issues
+    import pandas as pd
+
+    if has_issues(results):
+        with st.container(border=True):
+            st.markdown("### [ALERT] Issues Detected")
+            issues = []
+            for section, items in results.items():
+                if isinstance(items, dict):
+                    for key, value in items.items():
+                        if isinstance(value, dict) and "status" in value:
+                            if value["status"] in ["[ALERT]", "[DOWN]", "[WARN]", "[ERROR]"]:
+                                issues.append({"Component": key, "Status": value["status"], "Details": value.get("error", "")})
+            if issues:
+                st.dataframe(pd.DataFrame(issues), use_container_width=True)
+
+    tables = get_report_table_data(results)
+    for table_name, data in tables.items():
+        with st.container():
+            st.subheader(table_name)
+            st.dataframe(pd.DataFrame(data), use_container_width=True)
 
 ##-------------------Session setup ------------------------------------
 
@@ -605,7 +590,8 @@ if start_btn and not st.session_state.get("monitor_running"):
 
         st.session_state["message_history"].append({
             "role": "assistant",
-            "content": f"Monitor started.\n\nInitial check:\n{report}"
+            "content": f"Monitor started.\n\nInitial check:\n{report}",
+            "has_report_table": True
         })
 
         st.session_state["awaiting_hitl"] = True
@@ -728,6 +714,8 @@ else:
     for messages in st.session_state["message_history"]:
         with st.chat_message(messages['role']):
             st.markdown(messages['content'])
+            if messages.get('has_report_table') and st.session_state.get("last_check_results"):
+                render_report_tables(st.session_state["last_check_results"])
 
     ## ------------------- HITL Flows ---------------------
 

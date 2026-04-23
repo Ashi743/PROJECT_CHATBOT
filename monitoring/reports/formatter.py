@@ -135,6 +135,86 @@ def _truncate_to_slack_limit(msg: str, limit: int = 4000) -> str:
     return msg
 
 
+def get_report_table_data(results: dict) -> dict:
+    """Convert report results to structured format for table display."""
+    tables = {}
+
+    if "commodities" in results and results["commodities"]:
+        commodities_data = []
+        for commodity, data in results["commodities"].items():
+            if isinstance(data, dict):
+                commodities_data.append({
+                    "Commodity": commodity.upper(),
+                    "Status": data.get("status", "[UNKNOWN]"),
+                    "Change %": data.get("change", "N/A")
+                })
+        if commodities_data:
+            tables["Commodities"] = commodities_data
+
+    if "apis" in results and results["apis"]:
+        apis_data = []
+        for api, data in results["apis"].items():
+            if isinstance(data, dict):
+                apis_data.append({
+                    "API": api,
+                    "Status": data.get("status", "[UNKNOWN]"),
+                    "Response (ms)": data.get("response_ms", "N/A")
+                })
+        if apis_data:
+            tables["APIs"] = apis_data
+
+    if "files" in results and results["files"]:
+        files_data = []
+        for file, data in results["files"].items():
+            if isinstance(data, dict):
+                status = data.get("status", "[OK]")
+                if status != "[OK]":
+                    files_data.append({
+                        "File": file,
+                        "Status": status
+                    })
+        if files_data:
+            tables["Files (Issues)"] = files_data
+
+    if "databases" in results and results["databases"]:
+        databases_data = []
+        for db, data in results["databases"].items():
+            if isinstance(data, dict):
+                databases_data.append({
+                    "Database": db,
+                    "Status": data.get("status", "[UNKNOWN]"),
+                    "Size (MB)": data.get("size_mb", "N/A"),
+                    "Rows": data.get("rows", "N/A")
+                })
+        if databases_data:
+            tables["Databases"] = databases_data
+
+    if "chromadb" in results:
+        chroma = results["chromadb"].get("chromadb", {})
+        if chroma:
+            chroma_data = [{
+                "Component": "ChromaDB",
+                "Status": chroma.get("status", "[UNKNOWN]"),
+                "Documents": chroma.get("documents", 0),
+                "Disk (MB)": chroma.get("disk_mb", 0)
+            }]
+            tables["ChromaDB"] = chroma_data
+
+    if "app" in results:
+        app = results["app"].get("app_health", {})
+        if app:
+            app_data = [{
+                "Component": "App Health",
+                "Status": app.get("status", "[UNKNOWN]"),
+                "Memory %": app.get("memory_pct", "N/A"),
+                "CPU %": app.get("cpu_pct", "N/A"),
+                "Disk %": app.get("disk_pct", "N/A")
+            }]
+            tables["App Health"] = app_data
+
+    return tables
+
+
 if __name__ == "__main__":
     sample_results = {
         "commodities": {
