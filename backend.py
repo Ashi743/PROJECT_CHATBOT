@@ -25,9 +25,9 @@ from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
 
-# Cost optimization: Use gpt-4o-mini for general chat, gpt-4o for heavy analysis
+# Dual-LLM: gpt-4o-mini for general chat, gpt-4o for analysis (handles longer outputs)
 llm_model = ChatOpenAI(model="gpt-4o-mini")  # Main chatbot (cost-effective)
-analysis_llm = ChatOpenAI(model="gpt-4o")    # Heavy analysis interpretation (high-quality)
+analysis_llm = ChatOpenAI(model="gpt-4o")    # Analysis interpretation (no token limits)
 
 # Combine base tools with Gmail tools, data analysis tools, NLP, monitoring, alerting, and calendar tools
 base_tools = [
@@ -44,30 +44,42 @@ class chatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 
-def _is_analysis_result(messages: list[BaseMessage]) -> bool:
-    """Check if the last message is a tool result from analysis tools"""
+def _requires_analysis_llm(messages: list[BaseMessage]) -> bool:
+    """Check if conversation needs analysis LLM (keyword or recent analysis result)"""
     if not messages:
         return False
+
+    # Check last message for analysis keywords or large data
     last_msg = messages[-1]
-    if not isinstance(last_msg, ToolMessage):
-        return False
-    # Analysis tools produce larger, data-heavy results
-    content_str = str(last_msg.content)
-    return len(content_str) > 200 or any(
-        keyword in content_str.lower()
-        for keyword in ['correlation', 'histogram', 'plot', 'statistic', 'summary', '[PLOT_IMAGE']
-    )
+    analysis_keywords = {
+        "analyze", "interpret", "explain", "insight", "trend",
+        "correlate", "compare", "anomaly", "outlier", "statistic",
+        "summary", "pattern", "forecast", "predict"
+    }
+
+    # If last message is tool result from analysis tools
+    if isinstance(last_msg, ToolMessage):
+        content_str = str(last_msg.content).lower()
+        # Large results or analysis outputs need gpt-4o
+        return len(content_str) > 200 or any(
+            kw in content_str for kw in ['correlation', 'histogram', 'plot', 'statistic']
+        )
+
+    # If last message is user question with analysis keywords
+    if isinstance(last_msg, HumanMessage):
+        text = (last_msg.content or "").lower()
+        return any(kw in text for kw in analysis_keywords)
+
+    return False
 
 
 def chat_node(state:chatState):
     message= state["messages"]
-    # Use gpt-4o for interpreting analysis results, gpt-4o-mini for regular chat
-    if _is_analysis_result(message):
-        # Heavy analysis interpretation uses gpt-4o
+    # Route to appropriate LLM based on analysis keywords or recent results
+    if _requires_analysis_llm(message):
         analysis_llm_with_tools = analysis_llm.bind_tools(tools)
         response = analysis_llm_with_tools.invoke(message)
     else:
-        # Regular chat uses cheaper gpt-4o-mini
         response = llm_with_tools.invoke(message)
     return {'messages': [response]}
 
