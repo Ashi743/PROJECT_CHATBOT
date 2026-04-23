@@ -24,6 +24,15 @@ def get_connection(db_name: str = "analytics"):
     conn.row_factory = sqlite3.Row
     return conn
 
+
+def _validate_table_name(conn, table_name: str) -> bool:
+    """Whitelist table name against sqlite_master to prevent SQL injection"""
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,)
+    )
+    return cur.fetchone() is not None
+
 def _initialize_sample_database():
     """Create sample database if it doesn't exist"""
     if DB_PATH.exists():
@@ -126,6 +135,8 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
         elif query_type == 'describe':
             if not table_name:
                 return "[ERROR] describe requires table_name"
+            if not _validate_table_name(conn, table_name):
+                return f"[ERROR] Unknown table: {table_name}"
             cursor.execute(f"PRAGMA table_info({table_name})")
             columns = cursor.fetchall()
             if not columns:
@@ -149,6 +160,8 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
         elif query_type == 'count':
             if not table_name:
                 return "[ERROR] count requires table_name"
+            if not _validate_table_name(conn, table_name):
+                return f"[ERROR] Unknown table: {table_name}"
             cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
             count = cursor.fetchone()[0]
             return f"Table '{table_name}': {count} rows"
@@ -159,6 +172,8 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
             n = int(parts[1].strip()) if len(parts) > 1 else 5
             if not table:
                 return "[ERROR] sample requires table_name"
+            if not _validate_table_name(conn, table):
+                return f"[ERROR] Unknown table: {table}"
             cursor.execute(f"SELECT * FROM {table} LIMIT {n}")
             rows = cursor.fetchall()
             if not rows:
