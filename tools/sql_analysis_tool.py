@@ -137,7 +137,7 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
 
         if query_type == 'select':
             if not query:
-                return "Error: select requires SQL query"
+                return "[ERROR] select requires SQL query"
             cursor.execute(query)
             rows = cursor.fetchall()
             if not rows:
@@ -147,11 +147,11 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
 
         elif query_type == 'describe':
             if not table_name:
-                return "Error: describe requires table_name"
+                return "[ERROR] describe requires table_name"
             cursor.execute(f"PRAGMA table_info({table_name})")
             columns = cursor.fetchall()
             if not columns:
-                return f"Error: Table '{table_name}' not found"
+                return f"[ERROR] Table '{table_name}' not found"
             info_str = f"Table: {table_name}\n\nColumns:\n"
             for col in columns:
                 cid, name, col_type, notnull, dflt_value, pk = col
@@ -170,7 +170,7 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
 
         elif query_type == 'count':
             if not table_name:
-                return "Error: count requires table_name"
+                return "[ERROR] count requires table_name"
             cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
             count = cursor.fetchone()[0]
             return f"Table '{table_name}': {count} rows"
@@ -180,7 +180,7 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
             table = parts[0].strip() if parts else table_name
             n = int(parts[1].strip()) if len(parts) > 1 else 5
             if not table:
-                return "Error: sample requires table_name"
+                return "[ERROR] sample requires table_name"
             cursor.execute(f"SELECT * FROM {table} LIMIT {n}")
             rows = cursor.fetchall()
             if not rows:
@@ -190,15 +190,15 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
 
         elif query_type == 'insert':
             if not table_name or not params:
-                return "Error: insert requires table_name and params (format: 'col1,col2;val1,val2')"
+                return "[ERROR] insert requires table_name and params (format: 'col1,col2;val1,val2')"
             parts = params.split(';')
             if len(parts) != 2:
-                return "Error: params format should be 'col1,col2,...;val1,val2,...'"
+                return "[ERROR] params format should be 'col1,col2,...;val1,val2,...'"
             columns = [c.strip() for c in parts[0].split(',')]
             values = [v.strip() for v in parts[1].split(',')]
 
             if len(columns) != len(values):
-                return f"Error: column count ({len(columns)}) doesn't match value count ({len(values)})"
+                return f"[ERROR] column count ({len(columns)}) doesn't match value count ({len(values)})"
 
             placeholders = ','.join(['?' for _ in values])
             cols_str = ','.join(columns)
@@ -210,10 +210,10 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
 
         elif query_type == 'update':
             if not table_name or not params:
-                return "Error: update requires table_name and params (format: 'col1=val1,col2=val2;WHERE condition')"
+                return "[ERROR] update requires table_name and params (format: 'col1=val1,col2=val2;WHERE condition')"
             parts = params.split(';WHERE ')
             if len(parts) != 2:
-                return "Error: params format should be 'col1=val1,col2=val2;WHERE condition'"
+                return "[ERROR] params format should be 'col1=val1,col2=val2;WHERE condition'"
 
             set_clause = parts[0]
             where_clause = parts[1]
@@ -225,7 +225,7 @@ def analyze_sql(query_type: str, table_name: str = "", query: str = "", params: 
 
         elif query_type == 'delete':
             if not table_name or not params:
-                return "Error: delete requires table_name and WHERE condition in params"
+                return "[ERROR] delete requires table_name and WHERE condition in params"
             where_clause = params
             delete_query = f"DELETE FROM {table_name} WHERE {where_clause}"
 

@@ -186,7 +186,7 @@ def nlp_analyze(text: str, task: str = "all") -> str:
         Formatted string with analysis results
     """
     if not text or not text.strip():
-        return "Error: Empty text provided for analysis"
+        return "[ERROR] Empty text provided for analysis"
 
     results = {}
     task = task.lower().strip()
