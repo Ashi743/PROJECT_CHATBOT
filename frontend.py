@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+from datetime import datetime
 from backend import chatbot, retrieve_thread, save_thread_label, delete_thread, rename_thread
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -806,7 +808,16 @@ else:
             report = format_daily_report(results)
 
             st.divider()
-            st.warning("Email Report Preview:")
+            st.warning("Email Report:")
+
+            # Ask for recipient email
+            recipient_email = st.text_input(
+                "Send report to:",
+                value=os.getenv("GMAIL_RECIPIENT", ""),
+                key="gmail_recipient_input",
+                help="Enter email address for the report"
+            )
+
             st.text_area(
                 "Report content:",
                 value=report[:500] + "..." if len(report) > 500 else report,
@@ -817,16 +828,19 @@ else:
             g_col1, g_col2 = st.columns(2)
             with g_col1:
                 if st.button("Send Email", key="h_send_email", type="primary"):
-                    from monitoring.alerts.gmail_alert import send_gmail_report
-                    send_gmail_report(results)
+                    if not recipient_email or "@" not in recipient_email:
+                        st.error("Please enter a valid email address")
+                    else:
+                        from monitoring.alerts.gmail_alert import send_gmail_report
+                        send_gmail_report(results, subject=f"[Report] Pipeline Status - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-                    st.session_state["message_history"].append({
-                        "role": "assistant",
-                        "content": "Report sent to your Gmail inbox."
-                    })
-                    st.session_state["awaiting_hitl"] = False
-                    st.session_state["hitl_context"] = None
-                    st.rerun()
+                        st.session_state["message_history"].append({
+                            "role": "assistant",
+                            "content": f"Report sent to {recipient_email}."
+                        })
+                        st.session_state["awaiting_hitl"] = False
+                        st.session_state["hitl_context"] = None
+                        st.rerun()
 
             with g_col2:
                 if st.button("Cancel", key="h_cancel_email"):
