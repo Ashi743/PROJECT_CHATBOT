@@ -154,71 +154,100 @@ with st.sidebar:
             st.caption(f"**{tool_name}**: {tool_desc}")
 
     st.divider()
-    st.subheader("📊 Data Analysis")
+    with st.expander("📊 Data Analysis", expanded=False):
+        st.subheader("Upload Files")
 
-    with st.expander("Upload CSV/Excel", expanded=False):
-        uploaded_file = st.file_uploader(
-            "Choose a CSV or Excel file",
-            type=["csv", "xlsx", "xls"],
-            key="csv_uploader"
-        )
+        col_csv, col_sql = st.columns(2)
 
-        if uploaded_file is not None:
-            col1, col2 = st.columns(2)
-            with col1:
-                dataset_name = st.text_input(
-                    "Dataset name",
-                    value=uploaded_file.name.rsplit('.', 1)[0],
-                    key="dataset_name_input"
-                )
-            with col2:
-                user_desc = st.text_input(
-                    "Description (optional)",
-                    placeholder="e.g., Q1 Sales Data",
-                    key="dataset_desc_input"
+        with col_csv:
+            with st.expander("CSV/Excel", expanded=False):
+                uploaded_file = st.file_uploader(
+                    "Choose a CSV or Excel file",
+                    type=["csv", "xlsx", "xls"],
+                    key="csv_uploader"
                 )
 
-            if st.button("Upload", key="upload_btn"):
-                if not dataset_name or not dataset_name.strip():
-                    st.error("Dataset name cannot be empty")
-                else:
-                    # Persistent spinner at top during entire upload process
-                    with st.spinner("⏳ Processing dataset..."):
-                        # Step 1: Save file (fast)
-                        st.info("💾 Saving file...")
-                        save_result = save_and_prepare_file(
-                            file_bytes=uploaded_file.getvalue(),
-                            file_name=uploaded_file.name,
-                            dataset_name=dataset_name
+                if uploaded_file is not None:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        dataset_name = st.text_input(
+                            "Dataset name",
+                            value=uploaded_file.name.rsplit('.', 1)[0],
+                            key="dataset_name_input"
+                        )
+                    with col2:
+                        user_desc = st.text_input(
+                            "Description (optional)",
+                            placeholder="e.g., Q1 Sales Data",
+                            key="dataset_desc_input"
                         )
 
-                        if save_result["status"] != "ok":
-                            st.error(f"✗ {save_result['message']}")
+                    if st.button("Upload", key="upload_btn"):
+                        if not dataset_name or not dataset_name.strip():
+                            st.error("Dataset name cannot be empty")
                         else:
-                            # Step 2: Analyze and ingest to RAG with live progress steps
-                            with st.status("📊 Analyzing and indexing data...", expanded=True) as status:
-                                try:
-                                    rag_result = ingest_file_to_rag(
-                                        file_path=save_result["file_path"],
-                                        dataset_name=dataset_name,
-                                        user_description=user_desc,
-                                        file_name=uploaded_file.name,
-                                        on_progress=st.write
-                                    )
+                            with st.spinner("⏳ Processing dataset..."):
+                                st.info("💾 Saving file...")
+                                save_result = save_and_prepare_file(
+                                    file_bytes=uploaded_file.getvalue(),
+                                    file_name=uploaded_file.name,
+                                    dataset_name=dataset_name
+                                )
 
-                                    if rag_result["status"] == "ok":
-                                        status.update(label="✓ Analysis complete", state="complete")
-                                        chunks = rag_result.get('chunks_created', 0)
-                                        st.success(f"✓ File saved: {save_result['rows']} rows, {save_result['cols']} columns")
-                                        st.success(f"✓ {rag_result['message']}")
-                                        st.info(f"Chunks: {chunks} | Numeric cols: {len(rag_result.get('numeric_columns', []))} | Categorical cols: {len(rag_result.get('categorical_columns', []))}")
-                                        st.rerun()
-                                    else:
-                                        status.update(label="✗ Analysis failed", state="error")
-                                        st.error(f"✗ {rag_result['message']}")
-                                except Exception as e:
-                                    status.update(label="✗ Error during analysis", state="error")
-                                    st.error(f"✗ Error: {str(e)}")
+                                if save_result["status"] != "ok":
+                                    st.error(f"✗ {save_result['message']}")
+                                else:
+                                    with st.status("📊 Analyzing and indexing data...", expanded=True) as status:
+                                        try:
+                                            rag_result = ingest_file_to_rag(
+                                                file_path=save_result["file_path"],
+                                                dataset_name=dataset_name,
+                                                user_description=user_desc,
+                                                file_name=uploaded_file.name,
+                                                on_progress=st.write
+                                            )
+
+                                            if rag_result["status"] == "ok":
+                                                status.update(label="✓ Analysis complete", state="complete")
+                                                chunks = rag_result.get('chunks_created', 0)
+                                                st.success(f"✓ File saved: {save_result['rows']} rows, {save_result['cols']} columns")
+                                                st.success(f"✓ {rag_result['message']}")
+                                                st.info(f"Chunks: {chunks} | Numeric cols: {len(rag_result.get('numeric_columns', []))} | Categorical cols: {len(rag_result.get('categorical_columns', []))}")
+                                                st.rerun()
+                                            else:
+                                                status.update(label="✗ Analysis failed", state="error")
+                                                st.error(f"✗ {rag_result['message']}")
+                                        except Exception as e:
+                                            status.update(label="✗ Error during analysis", state="error")
+                                            st.error(f"✗ Error: {str(e)}")
+
+        with col_sql:
+            with st.expander("SQL", expanded=False):
+                uploaded_sql_file = st.file_uploader(
+                    "Choose a .sql file",
+                    type=["sql"],
+                    key="sql_uploader"
+                )
+
+                if uploaded_sql_file is not None:
+                    if st.button("Upload SQL File", key="upload_sql_btn"):
+                        with st.spinner("Processing SQL file..."):
+                            result = ingest_sql_file(
+                                file_bytes=uploaded_sql_file.getvalue(),
+                                file_name=uploaded_sql_file.name
+                            )
+
+                            if result["status"] == "ok":
+                                st.success(f"[OK] {result['message']}")
+                                st.info(f"Tables created: {', '.join(result['tables']) if result['tables'] else 'None'}")
+                                if result.get('warnings'):
+                                    st.warning(f"[WARNING] {len(result['warnings'])} statement(s) had issues")
+                                st.rerun()
+                            else:
+                                st.error(f"[ERROR] {result['message']}")
+
+        st.divider()
+        st.subheader("Datasets & Databases")
 
     # Show available datasets with HITL controls
     datasets = list_datasets()
@@ -431,7 +460,13 @@ with st.sidebar:
     if len(st.session_state["threads"]) > 0:
         st.divider()
         st.write("**Chat History**")
-        for thread in reversed(st.session_state["threads"]):
+
+        all_threads = list(reversed(st.session_state["threads"]))
+        recent_threads = all_threads[:7]
+        older_threads = all_threads[7:]
+
+        # Render 7 recent chats
+        for thread in recent_threads:
             col1, col2, col3 = st.columns([5, 1, 1])
             with col1:
                 if st.button(thread["label"], key=f"thread_{thread['id']}", use_container_width=True):
@@ -463,6 +498,42 @@ with st.sidebar:
                     if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}"):
                         st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
                         st.rerun()
+
+        # Older chats in scrollable expander
+        if older_threads:
+            with st.expander(f"More chats ({len(older_threads)})"):
+                for thread in older_threads:
+                    col1, col2, col3 = st.columns([5, 1, 1])
+                    with col1:
+                        if st.button(thread["label"], key=f"thread_{thread['id']}_old", use_container_width=True):
+                            switch_to_thread(thread["id"])
+                            st.rerun()
+                    with col2:
+                        if st.button("✏️", key=f"rename_{thread['id']}_old", help="Rename chat"):
+                            st.session_state[f"rename_mode_{thread['id']}"] = True
+                            st.rerun()
+                    with col3:
+                        if st.button("🗑️", key=f"delete_{thread['id']}_old", help="Delete chat"):
+                            st.session_state[f"confirm_delete_chat_{thread['id']}"] = True
+
+                    # HITL Confirmation for chat deletion (older chats)
+                    if st.session_state.get(f"confirm_delete_chat_{thread['id']}", False):
+                        st.warning(f"⚠️ Delete chat '{thread['label']}'? This cannot be undone.")
+                        col_confirm, col_cancel = st.columns([1, 1])
+                        with col_confirm:
+                            if st.button("Yes, Delete", key=f"confirm_delete_chat_yes_{thread['id']}_old", type="primary"):
+                                delete_thread(thread["id"])
+                                st.session_state["threads"] = [t for t in st.session_state["threads"] if t["id"] != thread["id"]]
+                                if st.session_state["current_thread_id"] == thread["id"]:
+                                    st.session_state["chat_started"] = False
+                                    st.session_state["current_thread_id"] = None
+                                    st.session_state["message_history"] = []
+                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                                st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"confirm_delete_chat_no_{thread['id']}_old"):
+                                st.session_state[f"confirm_delete_chat_{thread['id']}"] = False
+                                st.rerun()
 
             # Rename input field
             if st.session_state.get(f"rename_mode_{thread['id']}", False):
