@@ -6,6 +6,9 @@ from uuid import uuid4
 from pathlib import Path
 from tools.csv_ingest_tool import save_and_prepare_file, ingest_file_to_rag, list_datasets, get_dataset_info, update_dataset_description, delete_dataset
 from tools.sql_file_ingest_tool import ingest_sql_file, get_database_list, get_database_schema, delete_database
+from monitoring.reports.formatter import format_daily_report, has_issues, format_issue_alert
+from monitoring.alerts.slack_alert import alert_daily
+from monitoring.alerts.gmail_alert import send_gmail_report
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -32,7 +35,11 @@ AVAILABLE_TOOLS = {
     "Analyze SQL": "Query SQLite database with SQL",
     "Upload SQL Files": "Create databases from .sql files (CREATE TABLE + INSERT)",
     "List Databases": "See all uploaded SQL databases",
-    "Query Database": "Run SELECT queries on any uploaded database"
+    "Query Database": "Run SELECT queries on any uploaded database",
+    "Get Holidays": "Get holidays for any country via Calendarific API",
+    "Upcoming Holidays": "Get holidays for next 3 months (smart date detection)",
+    "Search Holidays": "Search holidays by keyword (e.g., Christmas, Diwali)",
+    "List Countries": "List all countries supported by Calendarific"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -128,6 +135,27 @@ if "message_history" not in st.session_state:
 
 if "pending_plots" not in st.session_state:
     st.session_state["pending_plots"] = []
+
+if "monitor_running" not in st.session_state:
+    st.session_state["monitor_running"] = False
+if "monitor_selections" not in st.session_state:
+    st.session_state["monitor_selections"] = []
+if "monitor_interval" not in st.session_state:
+    st.session_state["monitor_interval"] = 30
+if "monitor_thread" not in st.session_state:
+    st.session_state["monitor_thread"] = None
+if "last_check_results" not in st.session_state:
+    st.session_state["last_check_results"] = None
+if "report_scheduled" not in st.session_state:
+    st.session_state["report_scheduled"] = False
+if "report_paused" not in st.session_state:
+    st.session_state["report_paused"] = False
+if "scheduled_time" not in st.session_state:
+    st.session_state["scheduled_time"] = None
+if "awaiting_hitl" not in st.session_state:
+    st.session_state["awaiting_hitl"] = False
+if "hitl_context" not in st.session_state:
+    st.session_state["hitl_context"] = None
 
 
 ## ------------------- Streamlit UI ---------------------
@@ -467,8 +495,169 @@ with st.sidebar:
                         st.session_state[f"rename_mode_{thread['id']}"] = False
                         st.rerun()
 
+    st.divider()
+    st.subheader("Pipeline Monitor")
+
+    monitor_selection = st.multiselect(
+        "Select monitors:",
+        options=[
+            "Commodity Prices",
+            "Data Files",
+            "API Health",
+            "Database Health",
+            "ChromaDB",
+            "App Health",
+            "All"
+        ],
+        default=[]
+    )
+
+    interval = st.selectbox(
+        "Check interval:",
+        options=[
+            "Every 15 minutes",
+            "Every 30 minutes",
+            "Every hour",
+            "Every 6 hours"
+        ],
+        index=1
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        start_btn = st.button("Start Monitor", use_container_width=True, type="primary")
+    with col2:
+        stop_btn = st.button("Stop Monitor", use_container_width=True, type="secondary")
+
+    if st.session_state.get("monitor_running"):
+        st.success("Monitor: RUNNING")
+        st.caption(f"Checking: {', '.join(st.session_state['monitor_selections'])}")
+        st.caption(f"Interval: {st.session_state['monitor_interval']} min")
+    else:
+        st.info("Monitor: STOPPED")
+
+    gmail_now_btn = False
+    slack_now_btn = False
+    schedule_btn = False
+    stop_reports_btn = False
+
+    if st.session_state.get("monitor_running"):
+        st.divider()
+        st.caption("Report Actions:")
+
+        report_col1, report_col2 = st.columns(2)
+        with report_col1:
+            gmail_now_btn = st.button("Email Report Now", use_container_width=True)
+        with report_col2:
+            slack_now_btn = st.button("Slack Report Now", use_container_width=True)
+
+        schedule_btn = st.button("Schedule Reports", use_container_width=True)
+        stop_reports_btn = st.button("Pause Reports", use_container_width=True)
+
 ## ------------------- Initialize chatbot and database ---------------------
 
+
+## ------------------- Monitor Button Handlers ---------------------
+
+if start_btn and not st.session_state.get("monitor_running"):
+    if not monitor_selection:
+        st.error("Select at least one monitor.")
+    else:
+        interval_map = {
+            "Every 15 minutes": 15,
+            "Every 30 minutes": 30,
+            "Every hour": 60,
+            "Every 6 hours": 360
+        }
+        interval_minutes = interval_map[interval]
+
+        selections = monitor_selection
+        if "All" in selections:
+            selections = [
+                "Commodity Prices",
+                "Data Files",
+                "API Health",
+                "Database Health",
+                "ChromaDB",
+                "App Health"
+            ]
+
+        from monitoring.runner import start_background, run_selected_checks
+        thread = start_background(selections, interval_minutes)
+
+        st.session_state["monitor_running"] = True
+        st.session_state["monitor_selections"] = selections
+        st.session_state["monitor_interval"] = interval_minutes
+        st.session_state["monitor_thread"] = thread
+
+        results = run_selected_checks(selections)
+        st.session_state["last_check_results"] = results
+
+        report = format_daily_report(results)
+
+        st.session_state["message_history"].append({
+            "role": "assistant",
+            "content": f"Monitor started.\n\nInitial check:\n{report}"
+        })
+
+        st.session_state["awaiting_hitl"] = True
+        st.session_state["hitl_context"] = "monitor_started"
+        st.rerun()
+
+if stop_btn and st.session_state.get("monitor_running"):
+    st.session_state["monitor_running"] = False
+    st.session_state["monitor_selections"] = []
+    st.session_state["monitor_thread"] = None
+    st.session_state["report_scheduled"] = False
+    st.session_state["report_paused"] = False
+    st.session_state["scheduled_time"] = None
+
+    st.session_state["message_history"].append({
+        "role": "assistant",
+        "content": "Monitor stopped. All scheduled reports cancelled."
+    })
+    st.rerun()
+
+if st.session_state.get("monitor_running") and gmail_now_btn:
+    results = st.session_state.get("last_check_results")
+    if results:
+        st.session_state["awaiting_hitl"] = True
+        st.session_state["hitl_context"] = "gmail_now"
+        st.rerun()
+    else:
+        st.warning("No check results yet. Wait for first check to complete.")
+
+if st.session_state.get("monitor_running") and slack_now_btn:
+    results = st.session_state.get("last_check_results")
+    if results:
+        from monitoring.alerts.slack_alert import alert_daily
+        alert_daily(results)
+
+        st.session_state["message_history"].append({
+            "role": "assistant",
+            "content": "Report sent to Slack."
+        })
+        st.rerun()
+
+if st.session_state.get("monitor_running") and schedule_btn:
+    st.session_state["awaiting_hitl"] = True
+    st.session_state["hitl_context"] = "schedule_report"
+    st.rerun()
+
+if st.session_state.get("monitor_running") and stop_reports_btn:
+    st.session_state["report_paused"] = True
+
+    st.session_state["message_history"].append({
+        "role": "assistant",
+        "content": (
+            "Reports paused. Monitor continues running.\n"
+            "Click 'Email Report Now' or 'Slack Report Now' to send manually.\n"
+            "Click 'Schedule Reports' to resume."
+        )
+    })
+    st.rerun()
+
+## ------------------- Main Chat Area ---------------------
 
 if not st.session_state["chat_started"]:
     st.markdown("# 🤖 Welcome to Your AI Chat Bot!")
@@ -522,9 +711,268 @@ else:
         with st.chat_message(messages['role']):
             st.markdown(messages['content'])
 
+    ## ------------------- HITL Flows ---------------------
+
+    if st.session_state.get("awaiting_hitl"):
+        context = st.session_state.get("hitl_context")
+
+        if context == "monitor_started":
+            st.divider()
+            st.warning("Monitor started. What would you like to do with the report?")
+
+            h_col1, h_col2, h_col3, h_col4 = st.columns(4)
+
+            with h_col1:
+                if st.button("Email Now", key="h_email_now"):
+                    st.session_state["awaiting_hitl"] = True
+                    st.session_state["hitl_context"] = "gmail_now"
+                    st.rerun()
+
+            with h_col2:
+                if st.button("Slack Now", key="h_slack_now"):
+                    results = st.session_state["last_check_results"]
+                    alert_daily(results)
+
+                    st.session_state["message_history"].append({
+                        "role": "assistant",
+                        "content": "Report sent to Slack."
+                    })
+                    st.session_state["awaiting_hitl"] = False
+                    st.rerun()
+
+            with h_col3:
+                if st.button("Schedule", key="h_schedule"):
+                    st.session_state["awaiting_hitl"] = True
+                    st.session_state["hitl_context"] = "schedule_report"
+                    st.rerun()
+
+            with h_col4:
+                if st.button("Skip", key="h_skip"):
+                    st.session_state["awaiting_hitl"] = False
+                    st.session_state["hitl_context"] = None
+                    st.rerun()
+
+        elif context == "gmail_now":
+            results = st.session_state.get("last_check_results", {})
+            report = format_daily_report(results)
+
+            st.divider()
+            st.warning("Email Report Preview:")
+            st.text_area(
+                "Report content:",
+                value=report[:500] + "..." if len(report) > 500 else report,
+                height=200,
+                disabled=True
+            )
+
+            g_col1, g_col2 = st.columns(2)
+            with g_col1:
+                if st.button("Send Email", key="h_send_email", type="primary"):
+                    from monitoring.alerts.gmail_alert import send_gmail_report
+                    send_gmail_report(results)
+
+                    st.session_state["message_history"].append({
+                        "role": "assistant",
+                        "content": "Report sent to your Gmail inbox."
+                    })
+                    st.session_state["awaiting_hitl"] = False
+                    st.session_state["hitl_context"] = None
+                    st.rerun()
+
+            with g_col2:
+                if st.button("Cancel", key="h_cancel_email"):
+                    st.session_state["awaiting_hitl"] = False
+                    st.session_state["hitl_context"] = None
+                    st.rerun()
+
+        elif context == "schedule_report":
+            st.divider()
+            st.warning("Schedule recurring reports:")
+
+            s_channel = st.radio(
+                "Send to:",
+                options=["Slack", "Gmail", "Both"],
+                horizontal=True,
+                key="schedule_channel"
+            )
+
+            s_time = st.time_input(
+                "Daily report time:",
+                value=None,
+                key="schedule_time"
+            )
+
+            s_col1, s_col2 = st.columns(2)
+            with s_col1:
+                if st.button("Confirm Schedule", key="h_confirm_schedule", type="primary"):
+                    import schedule
+                    from monitoring.runner import run_all_checks
+
+                    time_str = s_time.strftime("%H:%M") if s_time else "09:00"
+                    channel = s_channel
+
+                    def scheduled_job():
+                        if not st.session_state.get("report_paused"):
+                            results = run_all_checks()
+                            st.session_state["last_check_results"] = results
+                            report = format_daily_report(results)
+
+                            if channel in ["Slack", "Both"]:
+                                from monitoring.alerts.slack_alert import alert_daily
+                                alert_daily(results)
+
+                            if channel in ["Gmail", "Both"]:
+                                from monitoring.alerts.gmail_alert import send_gmail_report
+                                send_gmail_report(results)
+
+                    schedule.every().day.at(time_str).do(scheduled_job)
+
+                    st.session_state["report_scheduled"] = True
+                    st.session_state["scheduled_time"] = time_str
+                    st.session_state["report_paused"] = False
+
+                    st.session_state["message_history"].append({
+                        "role": "assistant",
+                        "content": (
+                            f"Daily report scheduled at {time_str}.\n"
+                            f"Channel: {channel}\n"
+                            f"Click 'Pause Reports' to stop temporarily.\n"
+                            f"Click 'Stop Monitor' to cancel everything."
+                        )
+                    })
+                    st.session_state["awaiting_hitl"] = False
+                    st.session_state["hitl_context"] = None
+                    st.rerun()
+
+            with s_col2:
+                if st.button("Cancel", key="h_cancel_schedule"):
+                    st.session_state["awaiting_hitl"] = False
+                    st.session_state["hitl_context"] = None
+                    st.rerun()
+
     user_input = st.chat_input("type here")
 
     if user_input:
+        ## Monitor chat commands
+        monitor_commands = {
+            "stop monitoring": "stop_monitor",
+            "pause reports": "pause_reports",
+            "send report now": "gmail_now",
+            "send to slack": "slack_now",
+            "show monitor status": "monitor_status",
+            "schedule report": "schedule_report"
+        }
+
+        def get_monitor_status() -> str:
+            if not st.session_state.get("monitor_running"):
+                return "Monitor is not running. Click 'Start Monitor' in sidebar."
+
+            lines = [
+                "Monitor Status: RUNNING",
+                f"Checking: {', '.join(st.session_state['monitor_selections'])}",
+                f"Interval: every {st.session_state['monitor_interval']} minutes",
+            ]
+
+            if st.session_state.get("report_scheduled"):
+                lines.append(
+                    f"Scheduled report: daily at {st.session_state['scheduled_time']}"
+                )
+
+            if st.session_state.get("report_paused"):
+                lines.append("Reports: PAUSED")
+
+            results = st.session_state.get("last_check_results")
+            if results:
+                if has_issues(results):
+                    lines.append("\nCurrent Issues:")
+                    lines.append(format_issue_alert(results))
+                else:
+                    lines.append("\nAll systems: [OK]")
+
+            return "\n".join(lines)
+
+        command_executed = False
+        for phrase, action in monitor_commands.items():
+            if phrase in user_input.lower():
+                if action == "stop_monitor":
+                    st.session_state["monitor_running"] = False
+                    st.session_state["monitor_selections"] = []
+                    st.session_state["monitor_thread"] = None
+                    st.session_state["report_scheduled"] = False
+                    st.session_state["report_paused"] = False
+
+                    st.session_state["message_history"].append({
+                        "role": "user",
+                        "content": user_input
+                    })
+                    st.session_state["message_history"].append({
+                        "role": "assistant",
+                        "content": "Monitor stopped. All scheduled reports cancelled."
+                    })
+                    command_executed = True
+                    break
+
+                elif action == "pause_reports":
+                    st.session_state["report_paused"] = True
+                    st.session_state["message_history"].append({
+                        "role": "user",
+                        "content": user_input
+                    })
+                    st.session_state["message_history"].append({
+                        "role": "assistant",
+                        "content": (
+                            "Reports paused. Monitor continues running.\n"
+                            "Type 'schedule report' to resume."
+                        )
+                    })
+                    command_executed = True
+                    break
+
+                elif action == "gmail_now":
+                    if st.session_state.get("monitor_running"):
+                        st.session_state["awaiting_hitl"] = True
+                        st.session_state["hitl_context"] = "gmail_now"
+                        command_executed = True
+                        break
+
+                elif action == "slack_now":
+                    if st.session_state.get("monitor_running"):
+                        results = st.session_state.get("last_check_results")
+                        if results:
+                            alert_daily(results)
+                            st.session_state["message_history"].append({
+                                "role": "user",
+                                "content": user_input
+                            })
+                            st.session_state["message_history"].append({
+                                "role": "assistant",
+                                "content": "Report sent to Slack."
+                            })
+                            command_executed = True
+                            break
+
+                elif action == "monitor_status":
+                    st.session_state["message_history"].append({
+                        "role": "user",
+                        "content": user_input
+                    })
+                    st.session_state["message_history"].append({
+                        "role": "assistant",
+                        "content": get_monitor_status()
+                    })
+                    command_executed = True
+                    break
+
+                elif action == "schedule_report":
+                    if st.session_state.get("monitor_running"):
+                        st.session_state["awaiting_hitl"] = True
+                        st.session_state["hitl_context"] = "schedule_report"
+                        command_executed = True
+                        break
+
+        if command_executed:
+            st.rerun()
+
         st.session_state["message_history"].append({'role': 'user', 'content': user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
