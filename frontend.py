@@ -645,6 +645,8 @@ if st.session_state.get("monitor_running") and schedule_btn:
     st.rerun()
 
 if st.session_state.get("monitor_running") and stop_reports_btn:
+    from utils.runtime_state import set_flag
+    set_flag("report_paused", True)
     st.session_state["report_paused"] = True
 
     st.session_state["message_history"].append({
@@ -820,7 +822,8 @@ else:
                     channel = s_channel
 
                     def scheduled_job():
-                        if not st.session_state.get("report_paused"):
+                        from utils.runtime_state import get_flag
+                        if not get_flag("report_paused", False):
                             results = run_all_checks()
                             st.session_state["last_check_results"] = results
                             report = format_daily_report(results)
