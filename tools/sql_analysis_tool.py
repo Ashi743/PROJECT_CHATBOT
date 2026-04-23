@@ -32,6 +32,7 @@ def _initialize_sample_database():
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Create schema
     cursor.execute("""
     CREATE TABLE users (
         user_id INTEGER PRIMARY KEY,
@@ -67,34 +68,11 @@ def _initialize_sample_database():
     )
     """)
 
-    now = datetime.now()
-    users_data = [
-        (1, 'john_doe', 'john@example.com', (now - timedelta(days=30)).isoformat(), 'USA'),
-        (2, 'jane_smith', 'jane@example.com', (now - timedelta(days=25)).isoformat(), 'UK'),
-        (3, 'bob_wilson', 'bob@example.com', (now - timedelta(days=20)).isoformat(), 'Canada'),
-        (4, 'alice_johnson', 'alice@example.com', (now - timedelta(days=15)).isoformat(), 'Australia'),
-        (5, 'charlie_brown', 'charlie@example.com', (now - timedelta(days=10)).isoformat(), 'USA'),
-    ]
-    cursor.executemany("INSERT INTO users VALUES (?, ?, ?, ?, ?)", users_data)
-
-    products_data = [
-        (1, 'Laptop', 'Electronics', 999.99, 5, (now - timedelta(days=60)).isoformat()),
-        (2, 'Mouse', 'Electronics', 29.99, 50, (now - timedelta(days=60)).isoformat()),
-        (3, 'Keyboard', 'Electronics', 79.99, 30, (now - timedelta(days=60)).isoformat()),
-        (4, 'Monitor', 'Electronics', 299.99, 10, (now - timedelta(days=60)).isoformat()),
-        (5, 'USB Cable', 'Accessories', 9.99, 100, (now - timedelta(days=60)).isoformat()),
-    ]
-    cursor.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?, ?)", products_data)
-
-    orders_data = [
-        (1, 1, 1, 1, 999.99, (now - timedelta(days=5)).isoformat(), 'completed'),
-        (2, 2, 2, 2, 59.98, (now - timedelta(days=3)).isoformat(), 'completed'),
-        (3, 1, 3, 1, 79.99, (now - timedelta(days=2)).isoformat(), 'pending'),
-        (4, 3, 4, 1, 299.99, (now - timedelta(days=1)).isoformat(), 'completed'),
-        (5, 4, 5, 5, 49.95, (now - timedelta(hours=12)).isoformat(), 'pending'),
-        (6, 2, 1, 1, 999.99, (now - timedelta(hours=6)).isoformat(), 'processing'),
-    ]
-    cursor.executemany("INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?, ?)", orders_data)
+    # Load sample data from file
+    sql_file = Path(__file__).parent.parent / "data" / "sample_init.sql"
+    if sql_file.exists():
+        sql_content = sql_file.read_text(encoding="utf-8")
+        cursor.executescript(sql_content)
 
     conn.commit()
     conn.close()
