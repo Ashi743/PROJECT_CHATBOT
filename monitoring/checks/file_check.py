@@ -43,6 +43,11 @@ def check_files() -> dict:
     for file_path in data_dir.rglob("*"):
         if file_path.is_file():
             file_key = str(file_path.relative_to(data_dir))
+
+            # Skip .gitkeep and other placeholder files
+            if file_path.name == ".gitkeep":
+                continue
+
             current_files[file_key] = True
 
             try:
@@ -62,8 +67,6 @@ def check_files() -> dict:
                     status = "[ERROR]"
                 elif age_hours > 48:
                     status = "[STALE]"
-                elif size_kb < 1:
-                    status = "[WARN]"
                 else:
                     status = "[OK]"
 
