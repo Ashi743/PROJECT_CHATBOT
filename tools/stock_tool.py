@@ -1,6 +1,10 @@
 from langchain_core.tools import tool
 import yfinance as yf
 from datetime import datetime
+import logging
+from utils.rate_limit import rate_limit
+
+logger = logging.getLogger(__name__)
 
 @tool
 def get_stock_price(symbol: str) -> str:
@@ -9,6 +13,7 @@ def get_stock_price(symbol: str) -> str:
     Use when user asks about stock price, market cap, or stock performance.
     Input must be a valid stock ticker symbol like 'AAPL', 'TSLA', 'GOOGL', 'RELIANCE.BO'.
     """
+    rate_limit("stock", 1.0)
     try:
         symbol = symbol.upper()
 
@@ -70,7 +75,8 @@ def get_stock_price(symbol: str) -> str:
         # Determine direction
         try:
             direction = "[UP]" if change >= 0 else "[DOWN]"
-        except:
+        except Exception as e:
+            logger.warning(f"Could not determine price direction: {e}")
             direction = ""
 
         # Format current date
@@ -99,4 +105,5 @@ Fundamentals:
 """.strip()
 
     except Exception as e:
-        return f"Stock price error: {str(e)}"
+        logger.error(f"[ERROR] Failed to fetch stock price for {symbol}: {e}")
+        return f"[ERROR] Could not fetch stock data for {symbol}. Please check the ticker symbol."
