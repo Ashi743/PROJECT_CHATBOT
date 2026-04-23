@@ -25,6 +25,7 @@ class CSVAnalystState(TypedDict):
     file_path: str
     file_name: str
     user_description: str
+    dataframe: pd.DataFrame | None  # Loaded once in load_node, shared via state
     preview: str
     null_summary: str
     cleaning_plan: str
@@ -49,21 +50,24 @@ def load_node(state: CSVAnalystState) -> dict:
         })
 
         if confirmed != "yes":
-            return {"status": "cancelled", "messages": []}
+            return {"status": "cancelled", "messages": [], "dataframe": None}
 
         return {
+            "dataframe": df,
             "preview": preview,
             "status": "in_progress",
             "messages": [],
         }
     except Exception as e:
-        return {"status": "error", "messages": []}
+        return {"status": "error", "messages": [], "dataframe": None}
 
 
 def clean_node(state: CSVAnalystState) -> dict:
     """Plan cleaning operations and show interrupt."""
     try:
-        df = pd.read_csv(state["file_path"]) if state["file_path"].endswith('.csv') else pd.read_excel(state["file_path"])
+        df = state["dataframe"]
+        if df is None:
+            return {"status": "error", "messages": []}
 
         null_counts = df.isnull().sum()
         null_summary = null_counts[null_counts > 0].to_string() if (null_counts > 0).any() else "No null values"
@@ -100,7 +104,9 @@ def clean_node(state: CSVAnalystState) -> dict:
 def analyze_node(state: CSVAnalystState) -> dict:
     """Check for duplicates and show interrupt."""
     try:
-        df = pd.read_csv(state["file_path"]) if state["file_path"].endswith('.csv') else pd.read_excel(state["file_path"])
+        df = state["dataframe"]
+        if df is None:
+            return {"status": "error", "messages": []}
 
         duplicates_count = df.duplicated().sum()
         sample = df[df.duplicated(keep=False)].head(3).to_string() if duplicates_count > 0 else "No duplicates"
@@ -129,7 +135,9 @@ def rag_node(state: CSVAnalystState) -> dict:
     try:
         from tools.csv_ingest_tool import client, METADATA_DIR, _chunk_dataframe
 
-        df = pd.read_csv(state["file_path"]) if state["file_path"].endswith('.csv') else pd.read_excel(state["file_path"])
+        df = state["dataframe"]
+        if df is None:
+            return {"status": "error", "messages": []}
         chunks = _chunk_dataframe(df, chunk_size=50)
 
         confirmed = interrupt({
@@ -193,7 +201,9 @@ def plot_node(state: CSVAnalystState) -> dict:
     try:
         from tools.plot_utils import PlotGenerator
 
-        df = pd.read_csv(state["file_path"]) if state["file_path"].endswith('.csv') else pd.read_excel(state["file_path"])
+        df = state["dataframe"]
+        if df is None:
+            return {"status": "error", "messages": []}
 
         # Show interrupt asking if user wants plots
         confirmed = interrupt({
