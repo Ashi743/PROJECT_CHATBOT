@@ -1,4 +1,3 @@
-from tools.gmail import send_email
 from monitoring.reports.formatter import format_daily_report
 from datetime import datetime
 import logging
@@ -13,11 +12,17 @@ def send_gmail_report(results: dict, subject: str = None):
     body = format_daily_report(results)
 
     try:
-        result = send_email(
-            to="ashishdangwal97@gmail.com",
-            subject=subject,
-            body=body
-        )
+        from tools.gmail import send_email
+
+        if send_email is None:
+            logger.warning("Gmail not configured. Skipping email send.")
+            return {"status": "skipped", "reason": "Gmail not configured"}
+
+        result = send_email.invoke({
+            "to": "ashishdangwal97@gmail.com",
+            "subject": subject,
+            "message": body
+        })
         logger.info(f"Gmail report sent: {subject}")
         return result
     except Exception as e:
