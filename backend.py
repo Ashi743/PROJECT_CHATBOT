@@ -5,6 +5,8 @@ from langgraph.graph import StateGraph, START ,END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
+import atexit
+import signal
 
 from typing import TypedDict ,Annotated
 from dotenv import load_dotenv
@@ -134,6 +136,17 @@ def should_use_tools(state:chatState):
 conn= sqlite3.connect(database= "chat_memory.db", check_same_thread=False)
 checkpointer= SqliteSaver(conn)
 checkpointer.setup()  # Initialize database schema
+
+def _graceful_shutdown(*args):
+    try:
+        if hasattr(checkpointer, "conn") and checkpointer.conn is not None:
+            checkpointer.conn.commit()
+            checkpointer.conn.close()
+    except Exception as e:
+        print(f"[ERROR] Shutdown error: {e}")
+
+atexit.register(_graceful_shutdown)
+signal.signal(signal.SIGTERM, _graceful_shutdown)
 ## --------------------------------------------------------------
 
 # Create thread_metadata table for storing custom labels
