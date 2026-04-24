@@ -407,14 +407,60 @@ with st.sidebar:
         st.markdown("### 📚 Documents")
         indexed_docs = get_indexed_documents()
         if indexed_docs:
-            with st.expander(f"Indexed ({len(indexed_docs)})", expanded=False):
+            unique_docs = {}
+            for doc in indexed_docs:
+                if doc['name'] not in unique_docs:
+                    unique_docs[doc['name']] = doc
+
+            st.subheader("Uploaded Documents", divider=False)
+            for doc_name in sorted(unique_docs.keys()):
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    st.caption(f"📄 {doc_name}")
+                with col2:
+                    if st.button("✏️", key=f"rename_doc_{doc_name}", help="Rename"):
+                        st.session_state[f"rename_mode_{doc_name}"] = True
+                        st.rerun()
+                with col3:
+                    if st.button("🗑️", key=f"delete_doc_{doc_name}", help="Delete"):
+                        st.session_state[f"confirm_delete_doc_{doc_name}"] = True
+                        st.rerun()
+
+                if st.session_state.get(f"rename_mode_{doc_name}", False):
+                    new_name = st.text_input("New document name:", value=doc_name, key=f"rename_input_{doc_name}")
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        if st.button("Save", key=f"save_rename_doc_{doc_name}"):
+                            st.info("[INFO] Document rename feature coming soon")
+                            st.session_state[f"rename_mode_{doc_name}"] = False
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("Cancel", key=f"cancel_rename_doc_{doc_name}"):
+                            st.session_state[f"rename_mode_{doc_name}"] = False
+                            st.rerun()
+
+                if st.session_state.get(f"confirm_delete_doc_{doc_name}", False):
+                    st.warning(f"⚠️ Delete '{doc_name}'? This will remove all indexed chunks.")
+                    col_confirm, col_cancel = st.columns(2)
+                    with col_confirm:
+                        if st.button("Yes, Delete", key=f"confirm_delete_doc_yes_{doc_name}", type="primary"):
+                            st.info("[INFO] Document delete feature coming soon")
+                            st.session_state[f"confirm_delete_doc_{doc_name}"] = False
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("Cancel", key=f"cancel_delete_doc_{doc_name}"):
+                            st.session_state[f"confirm_delete_doc_{doc_name}"] = False
+                            st.rerun()
+
+            st.divider()
+            with st.expander(f"📄 Indexed Chunks ({len(indexed_docs)})", expanded=False):
                 for doc in indexed_docs[:10]:
                     with st.container(border=True):
-                        st.caption(f"📄 **{doc['name']}**")
-                        st.caption(f"{doc['source']}")
+                        st.caption(f"**{doc['name']}**")
+                        st.caption(f"Preview: {doc['preview']}")
 
                 if len(indexed_docs) > 10:
-                    st.caption(f"... +{len(indexed_docs) - 10} more")
+                    st.caption(f"... +{len(indexed_docs) - 10} more chunks")
         else:
             st.caption("No documents yet")
 
