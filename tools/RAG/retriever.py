@@ -6,6 +6,9 @@ from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 CHROMA_DB_PATH = "data/chroma_db"
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
