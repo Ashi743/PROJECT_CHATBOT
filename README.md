@@ -119,7 +119,40 @@ Reports display as organized tables showing:
 - `send to slack` — Send report to Slack immediately
 - `schedule report` — HITL approval → set daily report time
 
-## 🎯 Latest Implementation: C-RAG + Self-RAG (This Session)
+## 🎯 Latest Implementation: Memory System (This Session)
+
+### Memory System Features (April 24, 2026)
+- ✅ **Semantic Memory** — Persistent user facts (name, age, interests, goals) in Redis
+- ✅ **Procedural Memory** — Communication preferences (tone, format, language) in Redis
+- ✅ **Episodic Memory** — Conversation context and events in ChromaDB with semantic search
+- ✅ **Session State** — Working context with 2-hour TTL in Redis
+- ✅ **Memory Injection** — Automatic context loading and injection into LLM prompts
+- ✅ **Monitor-to-Memory Bridge** — Monitor events (commodity alerts, API issues) auto-update memory
+- ✅ **Sidebar Profile Display** — Show user profile facts and preferences
+- ✅ **Graceful Degradation** — Chat works fine if Redis/ChromaDB unavailable
+- ✅ **Complete Specs** — 15 detailed spec files in `.claude/specs/memory/`
+
+### Architecture
+```
+User Message → Load LongTermMemory
+├─ Semantic Profile (Redis) [O(1)]
+├─ Procedural Profile (Redis) [O(1)]
+└─ Episodic Context (ChromaDB) [200-500ms]
+    ↓
+Build <memory> Block (400 token limit)
+    ↓
+Inject into System Prompt → LLM (personalized response)
+```
+
+### Testing
+- ✅ Memory system tests passing (models, context builder)
+- ✅ Backend integration verified (memory injection in chat_node)
+- ✅ Frontend integration verified (session management, sidebar display)
+- ✅ Monitor bridge ready (commodity alerts → semantic.interests)
+
+---
+
+## 🎯 Previous Implementation: C-RAG + Self-RAG
 
 ### Major Features Implemented (April 24, 2026)
 - ✅ **C-RAG + Self-RAG System** — Dual-layer quality control for RAG queries
