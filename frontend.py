@@ -424,101 +424,101 @@ with st.sidebar:
         # Show available datasets with HITL controls
         datasets = list_datasets()
         if datasets:
-        for ds in datasets:
-            is_confirming_delete = st.session_state.get(f"confirm_delete_dataset_{ds}", False)
-            with st.expander(f"📊 {ds}", expanded=is_confirming_delete):
-                info = get_dataset_info(ds)
-                if "error" not in info:
-                    st.caption(f"**Rows:** {info.get('rows')} | **Columns:** {info.get('columns', [])}")
+            for ds in datasets:
+                is_confirming_delete = st.session_state.get(f"confirm_delete_dataset_{ds}", False)
+                with st.expander(f"📊 {ds}", expanded=is_confirming_delete):
+                    info = get_dataset_info(ds)
+                    if "error" not in info:
+                        st.caption(f"**Rows:** {info.get('rows')} | **Columns:** {info.get('columns', [])}")
 
-                    if info.get('user_description'):
-                        st.caption(f"**Description:** {info['user_description']}")
+                        if info.get('user_description'):
+                            st.caption(f"**Description:** {info['user_description']}")
 
-                    # HITL: Update description
-                    new_desc = st.text_input(
-                        "Update description",
-                        value=info.get('user_description', ''),
-                        key=f"desc_{ds}"
-                    )
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("💾 Save", key=f"save_desc_{ds}"):
-                            update_result = update_dataset_description(ds, new_desc or "")
-                            if update_result["status"] == "ok":
-                                st.success("Description updated")
-                            else:
-                                st.error(f"Error: {update_result['message']}")
+                        # HITL: Update description
+                        new_desc = st.text_input(
+                            "Update description",
+                            value=info.get('user_description', ''),
+                            key=f"desc_{ds}"
+                        )
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            if st.button("💾 Save", key=f"save_desc_{ds}"):
+                                update_result = update_dataset_description(ds, new_desc or "")
+                                if update_result["status"] == "ok":
+                                    st.success("Description updated")
+                                else:
+                                    st.error(f"Error: {update_result['message']}")
 
-                    with col2:
-                        if st.button("📈 Visualize", key=f"visualize_{ds}"):
-                            st.session_state[f"visualizing_{ds}"] = True
-                            st.rerun()
+                        with col2:
+                            if st.button("📈 Visualize", key=f"visualize_{ds}"):
+                                st.session_state[f"visualizing_{ds}"] = True
+                                st.rerun()
 
-                    with col3:
-                        if st.button("🗑️ Delete", key=f"delete_{ds}"):
-                            st.session_state[f"confirm_delete_dataset_{ds}"] = True
-                            st.rerun()
+                        with col3:
+                            if st.button("🗑️ Delete", key=f"delete_{ds}"):
+                                st.session_state[f"confirm_delete_dataset_{ds}"] = True
+                                st.rerun()
 
-                    # Generate plots if visualization requested
-                    if st.session_state.get(f"visualizing_{ds}", False):
-                        from tools.csv_ingest_tool import UPLOAD_DIR
-                        dataset_file = None
-                        for ext in ['.csv', '.xlsx', '.xls']:
-                            candidate = UPLOAD_DIR / f"{ds}{ext}"
-                            if candidate.exists():
-                                dataset_file = candidate
-                                break
+                        # Generate plots if visualization requested
+                        if st.session_state.get(f"visualizing_{ds}", False):
+                            from tools.csv_ingest_tool import UPLOAD_DIR
+                            dataset_file = None
+                            for ext in ['.csv', '.xlsx', '.xls']:
+                                candidate = UPLOAD_DIR / f"{ds}{ext}"
+                                if candidate.exists():
+                                    dataset_file = candidate
+                                    break
 
-                        if dataset_file:
-                            with st.status("📊 Generating visualizations...", expanded=True) as status:
-                                try:
-                                    from tools.plot_utils import PlotGenerator
-                                    import pandas as pd
+                            if dataset_file:
+                                with st.status("📊 Generating visualizations...", expanded=True) as status:
+                                    try:
+                                        from tools.plot_utils import PlotGenerator
+                                        import pandas as pd
 
-                                    st.write("📖 Loading data...")
-                                    df = pd.read_csv(dataset_file) if str(dataset_file).endswith('.csv') else pd.read_excel(dataset_file)
+                                        st.write("📖 Loading data...")
+                                        df = pd.read_csv(dataset_file) if str(dataset_file).endswith('.csv') else pd.read_excel(dataset_file)
 
-                                    st.write("🎨 Creating plots...")
-                                    generator = PlotGenerator(df, ds)
-                                    result = generator.generate_all_plots()
+                                        st.write("🎨 Creating plots...")
+                                        generator = PlotGenerator(df, ds)
+                                        result = generator.generate_all_plots()
 
-                                    if result["status"] == "ok":
-                                        status.update(label="✓ Visualizations ready", state="complete")
+                                        if result["status"] == "ok":
+                                            status.update(label="✓ Visualizations ready", state="complete")
+                                            st.session_state[f"visualizing_{ds}"] = False
+                                            st.session_state[f"plots_{ds}"] = result["plots"]
+                                            st.rerun()
+                                        else:
+                                            status.update(label="✗ Visualization failed", state="error")
+                                            st.error(f"Error: {result.get('message', 'Unknown error')}")
+                                            st.session_state[f"visualizing_{ds}"] = False
+                                    except Exception as e:
+                                        status.update(label="✗ Error generating plots", state="error")
+                                        st.error(f"Error: {str(e)}")
                                         st.session_state[f"visualizing_{ds}"] = False
-                                        st.session_state[f"plots_{ds}"] = result["plots"]
+                            else:
+                                st.error(f"Could not find dataset file for '{ds}'")
+
+                        # Display plots if they exist
+                        if st.session_state.get(f"plots_{ds}"):
+                            render_plots_grid(st.session_state[f"plots_{ds}"])
+
+                        # HITL Confirmation for dataset deletion
+                        if st.session_state.get(f"confirm_delete_dataset_{ds}", False):
+                            st.warning(f"⚠️ Are you sure you want to delete '{ds}'? This cannot be undone.")
+                            col_confirm, col_cancel = st.columns(2)
+                            with col_confirm:
+                                if st.button("Yes, Delete", key=f"confirm_delete_dataset_yes_{ds}", type="primary"):
+                                    delete_result = delete_dataset(ds)
+                                    if delete_result["status"] == "ok":
+                                        st.success("Dataset deleted")
+                                        st.session_state[f"confirm_delete_dataset_{ds}"] = False
                                         st.rerun()
                                     else:
-                                        status.update(label="✗ Visualization failed", state="error")
-                                        st.error(f"Error: {result.get('message', 'Unknown error')}")
-                                        st.session_state[f"visualizing_{ds}"] = False
-                                except Exception as e:
-                                    status.update(label="✗ Error generating plots", state="error")
-                                    st.error(f"Error: {str(e)}")
-                                    st.session_state[f"visualizing_{ds}"] = False
-                        else:
-                            st.error(f"Could not find dataset file for '{ds}'")
-
-                    # Display plots if they exist
-                    if st.session_state.get(f"plots_{ds}"):
-                        render_plots_grid(st.session_state[f"plots_{ds}"])
-
-                    # HITL Confirmation for dataset deletion
-                    if st.session_state.get(f"confirm_delete_dataset_{ds}", False):
-                        st.warning(f"⚠️ Are you sure you want to delete '{ds}'? This cannot be undone.")
-                        col_confirm, col_cancel = st.columns(2)
-                        with col_confirm:
-                            if st.button("Yes, Delete", key=f"confirm_delete_dataset_yes_{ds}", type="primary"):
-                                delete_result = delete_dataset(ds)
-                                if delete_result["status"] == "ok":
-                                    st.success("Dataset deleted")
+                                        st.error(f"Error: {delete_result['message']}")
+                            with col_cancel:
+                                if st.button("Cancel", key=f"confirm_delete_dataset_no_{ds}"):
                                     st.session_state[f"confirm_delete_dataset_{ds}"] = False
                                     st.rerun()
-                                else:
-                                    st.error(f"Error: {delete_result['message']}")
-                        with col_cancel:
-                            if st.button("Cancel", key=f"confirm_delete_dataset_no_{ds}"):
-                                st.session_state[f"confirm_delete_dataset_{ds}"] = False
-                                st.rerun()
 
         st.divider()
         st.markdown("### 🗄️ Databases")
