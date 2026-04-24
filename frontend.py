@@ -531,60 +531,60 @@ with st.sidebar:
                 is_confirming_delete = st.session_state.get(f"confirm_delete_db_{db_name}", False)
 
                 with st.expander(f"[DB] {db_name}", expanded=is_confirming_delete):
-                # Show metadata
-                created_date = db_info.get('created_at', 'N/A')[:10]
-                table_count = len(db_info.get('tables', []))
-                st.caption(f"**Created:** {created_date} | **Tables:** {table_count}")
+                    # Show metadata
+                    created_date = db_info.get('created_at', 'N/A')[:10]
+                    table_count = len(db_info.get('tables', []))
+                    st.caption(f"**Created:** {created_date} | **Tables:** {table_count}")
 
-                if db_info.get('tables'):
-                    st.caption(f"**Tables:** {', '.join(db_info['tables'])}")
+                    if db_info.get('tables'):
+                        st.caption(f"**Tables:** {', '.join(db_info['tables'])}")
 
-                # Get and show schema
-                schema = get_database_schema(db_name)
-                if "error" not in schema:
-                    with st.expander("View Schema", expanded=False):
-                        for table_name, table_info in schema.get('tables', {}).items():
-                            st.markdown(f"**{table_name}** ({table_info['row_count']} rows)")
-                            col_names = [col['name'] for col in table_info['columns']]
-                            col_types = [col['type'] for col in table_info['columns']]
-                            st.caption(", ".join([f"{n}: {t}" for n, t in zip(col_names, col_types)]))
+                    # Get and show schema
+                    schema = get_database_schema(db_name)
+                    if "error" not in schema:
+                        with st.expander("View Schema", expanded=False):
+                            for table_name, table_info in schema.get('tables', {}).items():
+                                st.markdown(f"**{table_name}** ({table_info['row_count']} rows)")
+                                col_names = [col['name'] for col in table_info['columns']]
+                                col_types = [col['type'] for col in table_info['columns']]
+                                st.caption(", ".join([f"{n}: {t}" for n, t in zip(col_names, col_types)]))
 
-                # AI-suggested queries
-                with st.expander("Sample Queries", expanded=False):
-                    st.markdown("**Sample queries you can ask the AI to run:**")
-                    tables = db_info.get('tables', [])
-                    if tables:
-                        primary_table = tables[0]
-                        st.code(f"SELECT * FROM {primary_table} LIMIT 5", language="sql")
-                        st.code(f"SELECT COUNT(*) FROM {primary_table}", language="sql")
-                        if len(tables) > 1:
-                            st.code(f"SELECT * FROM {primary_table} JOIN {tables[1]} ON ...", language="sql")
-                        st.caption("[TIP] Use these in your chat: 'Run this query against the {database_name}' or 'Show me all data from {table_name}'")
+                    # AI-suggested queries
+                    with st.expander("Sample Queries", expanded=False):
+                        st.markdown("**Sample queries you can ask the AI to run:**")
+                        tables = db_info.get('tables', [])
+                        if tables:
+                            primary_table = tables[0]
+                            st.code(f"SELECT * FROM {primary_table} LIMIT 5", language="sql")
+                            st.code(f"SELECT COUNT(*) FROM {primary_table}", language="sql")
+                            if len(tables) > 1:
+                                st.code(f"SELECT * FROM {primary_table} JOIN {tables[1]} ON ...", language="sql")
+                            st.caption("[TIP] Use these in your chat: 'Run this query against the {database_name}' or 'Show me all data from {table_name}'")
 
-                # Delete button
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Delete Database", key=f"delete_db_{db_name}"):
-                        st.session_state[f"confirm_delete_db_{db_name}"] = True
-                        st.rerun()
+                    # Delete button
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Delete Database", key=f"delete_db_{db_name}"):
+                            st.session_state[f"confirm_delete_db_{db_name}"] = True
+                            st.rerun()
 
-                # HITL Confirmation for database deletion
-                if st.session_state.get(f"confirm_delete_db_{db_name}", False):
-                    st.warning(f"[CONFIRM] Are you sure you want to delete '{db_name}'? This cannot be undone.")
-                    col_confirm, col_cancel = st.columns(2)
-                    with col_confirm:
-                        if st.button("Yes, Delete", key=f"confirm_delete_db_yes_{db_name}", type="primary"):
-                            delete_result = delete_database(db_name)
-                            if delete_result["status"] == "ok":
-                                st.success("Database deleted")
+                    # HITL Confirmation for database deletion
+                    if st.session_state.get(f"confirm_delete_db_{db_name}", False):
+                        st.warning(f"[CONFIRM] Are you sure you want to delete '{db_name}'? This cannot be undone.")
+                        col_confirm, col_cancel = st.columns(2)
+                        with col_confirm:
+                            if st.button("Yes, Delete", key=f"confirm_delete_db_yes_{db_name}", type="primary"):
+                                delete_result = delete_database(db_name)
+                                if delete_result["status"] == "ok":
+                                    st.success("Database deleted")
+                                    st.session_state[f"confirm_delete_db_{db_name}"] = False
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error: {delete_result['message']}")
+                        with col_cancel:
+                            if st.button("Cancel", key=f"confirm_delete_db_no_{db_name}"):
                                 st.session_state[f"confirm_delete_db_{db_name}"] = False
                                 st.rerun()
-                            else:
-                                st.error(f"Error: {delete_result['message']}")
-                    with col_cancel:
-                        if st.button("Cancel", key=f"confirm_delete_db_no_{db_name}"):
-                            st.session_state[f"confirm_delete_db_{db_name}"] = False
-                            st.rerun()
 
     st.divider()
     st.subheader("⚙️ MONITORING")
