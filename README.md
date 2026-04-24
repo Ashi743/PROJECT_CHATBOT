@@ -20,11 +20,18 @@ streamlit run frontend.py
 - Real-time message streaming with tool execution
 - Support for 19+ AI tools (search, analysis, stocks, commodities, email, etc.)
 
-### Data Management
-- **Unified Data Section** — Upload CSV, Excel, SQL files in one dropdown
+### Data Management & RAG
+- **Unified Data Section** — Upload CSV, Excel, SQL, PDF, Word files in one location
 - **CSV/Excel Analysis** — Pandas-powered data analysis with visualizations
 - **SQL Databases** — Upload .sql files, run SELECT queries
-- **ChromaDB RAG** — Semantic search across uploaded datasets
+- **Document Upload** — Index PDF, Word, CSV, Excel for semantic search
+- **C-RAG + Self-RAG** — Dual-layer quality control with 4 grading prompts
+  - Document relevance verification (C-RAG)
+  - Hallucination detection (Self-RAG)
+  - Answer usefulness validation (Self-RAG)
+  - Web search fallback (DuckDuckGo)
+  - Max 3 retrieval/generation loops with metrics
+- **ChromaDB Vector DB** — Semantic search with proper indexing
 
 ### Monitoring & Alerts
 - **Real-time Monitor** — Check commodity prices, API health, file integrity, database health
@@ -112,19 +119,51 @@ Reports display as organized tables showing:
 - `send to slack` — Send report to Slack immediately
 - `schedule report` — HITL approval → set daily report time
 
-## 🎯 Recent Implementation (This Session)
+## 🎯 Latest Implementation: C-RAG + Self-RAG (This Session)
 
-### Completed Features
+### Major Features Implemented (April 24, 2026)
+- ✅ **C-RAG + Self-RAG System** — Dual-layer quality control for RAG queries
+  - Document relevance grading (Prompt 1 - IsRel)
+  - Answer generation from context (Prompt 2)
+  - Hallucination detection (Prompt 3 - IsSup)
+  - Usefulness validation (Prompt 4 - IsUse)
+  - Loop control: max 3 retrieval/generation iterations
+  - 30-second timeout with metrics tracking
+  
+- ✅ **Document Upload UI** — Accept PDF, Word, CSV, Excel files for RAG indexing
+  - ChromaDB vector storage with OpenAI embeddings
+  - Document metadata and preview
+  - Organized sidebar with collapsed sections
+
+- ✅ **Document Management** — Rename and delete uploaded documents with HITL
+  - Indexed documents display with count
+  - Per-document rename/delete buttons
+  - Deletion confirmation warning
+  - Full HITL workflow
+
+- ✅ **Web Search Fallback** — DuckDuckGo integration when all docs irrelevant
+  - Automatic fallback to web results
+  - Metrics tracking for fallback usage
+
+- ✅ **Sidebar Reorganization**
+  - 📤 UPLOADS (RAG Documents, CSV/Excel, SQL Files)
+  - 📚 DOCUMENTS (Indexed Documents with management)
+  - 📊 DATASETS (Available Datasets)
+  - 🗄️ DATABASES (Available Databases)
+  - ⚙️ MONITORING (Monitor controls)
+
+- ✅ **Code Quality Improvements**
+  - Proper environment variable loading (.env)
+  - Response content parsing fixes
+  - Indentation corrections
+  - Comprehensive dependency management
+
+### Previous Sessions
 - ✅ Minimal modular refactoring (frontend/utils.py)
 - ✅ 7 recent chats + scrollable older chats expander
-- ✅ Reorganized sidebar (Conversations → Tools → Data → Monitor)
-- ✅ Table-based monitor reports (HTML email, Slack markdown, Streamlit dataframes)
-- ✅ "All systems work fine" message only when truly healthy
-- ✅ Fixed DuckDuckGo API check
-- ✅ Load report chat commands with table display
-- ✅ HITL email input for "Send report to:" confirmation
-- ✅ Removed duplicate SQL uploader (fixed key collision)
-- ✅ Fixed false WARN on small files (.gitkeep, JSON state files)
+- ✅ Table-based monitor reports
+- ✅ HITL email approval workflows
+- ✅ Multi-channel alert system
 
 ### Architecture Decisions Made
 
