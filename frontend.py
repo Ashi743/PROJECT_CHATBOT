@@ -8,6 +8,7 @@ from uuid import uuid4
 from pathlib import Path
 from tools.csv_ingest_tool import save_and_prepare_file, ingest_file_to_rag, list_datasets, get_dataset_info, update_dataset_description, delete_dataset
 from tools.sql_file_ingest_tool import ingest_sql_file, get_database_list, get_database_schema, delete_database
+from tools.RAG.retriever import save_document_to_chroma, get_indexed_documents
 from monitoring.reports.formatter import format_daily_report, has_issues, format_issue_alert
 from monitoring.alerts.slack_alert import alert_daily
 from monitoring.alerts.gmail_alert import send_gmail_report
@@ -42,7 +43,8 @@ AVAILABLE_TOOLS = {
     "Query Database": "Run SELECT queries on any uploaded database",
     "Get Holidays": "Get holidays for any country via Calendarific API",
     "Upcoming Holidays": "Get holidays for next 3 months (smart date detection)",
-    "Supported Countries": "List all countries with holiday data"
+    "Supported Countries": "List all countries with holiday data",
+    "Self-RAG Query": "Query indexed documents with C-RAG + Self-RAG (ChromaDB + OpenAI)"
 }
 
 ## ----------------- utility functions for thread management -----------------
@@ -268,10 +270,10 @@ with st.sidebar:
     with st.expander("📊 Data Analysis", expanded=False):
         st.subheader("Upload Files")
 
-    with st.expander("📄 Upload Documents (RAG)", expanded=False):
+    with st.expander("📄 Upload Documents (C-RAG + Self-RAG)", expanded=False):
         doc_file = st.file_uploader(
-            "Choose a PDF or Word document",
-            type=["pdf", "docx", "doc"],
+            "Choose a PDF, Word, CSV, or Excel file for RAG indexing",
+            type=["pdf", "docx", "doc", "csv", "xlsx", "xls"],
             key="doc_uploader"
         )
 
@@ -290,29 +292,51 @@ with st.sidebar:
                     key="doc_desc_input"
                 )
 
-            if st.button("Upload Document", key="upload_doc_btn"):
+            if st.button("Upload to RAG", key="upload_doc_btn"):
                 if not doc_name or not doc_name.strip():
-                    st.error("Document name cannot be empty")
+                    st.error("[ALERT] Document name cannot be empty")
                 else:
-                    st.info(f"Document '{doc_name}' uploaded successfully")
-                    st.info("Processing will be available in C-RAG and Self-RAG tools")
+                    with st.spinner("Indexing document to ChromaDB..."):
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(doc_file.name).suffix) as tmp:
+                            tmp.write(doc_file.getvalue())
+                            tmp_path = tmp.name
 
-    with st.expander("Upload CSV/Excel", expanded=False):
-        uploaded_file = st.file_uploader(
-            "Choose a CSV or Excel file",
-            type=["csv", "xlsx", "xls"],
-            key="csv_uploader"
-        )
+                        try:
+                            result = save_document_to_chroma(tmp_path, doc_name)
+                            if result["status"] == "ok":
+                                st.success(f"[OK] Document indexed: {doc_name}")
+                                st.info(f"Chunks created: {result.get('doc_count', 0)}")
+                                st.info("Available for C-RAG + Self-RAG queries")
+                            else:
+                                st.error(f"[ERROR] {result['message']}")
+                        except Exception as e:
+                            st.error(f"[ERROR] Failed to index document: {str(e)}")
+                        finally:
+                            import os
+                            if os.path.exists(tmp_path):
+                                os.remove(tmp_path)
 
-        with col_csv:
-            with st.expander("CSV/Excel", expanded=False):
-                uploaded_file = st.file_uploader(
-                    "Choose a CSV or Excel file",
-                    type=["csv", "xlsx", "xls"],
-                    key="csv_uploader"
-                )
+        indexed_docs = get_indexed_documents()
+        if indexed_docs:
+            st.divider()
+            st.subheader("Indexed Documents")
+            for doc in indexed_docs[:10]:
+                with st.container(border=True):
+                    st.caption(f"📄 **{doc['name']}** ({doc['source']})")
+                    st.caption(f"Preview: {doc['preview']}")
 
-                if uploaded_file is not None:
+    col_csv, col_sql = st.columns(2)
+
+    with col_csv:
+        with st.expander("Upload CSV/Excel", expanded=False):
+            uploaded_file = st.file_uploader(
+                "Choose a CSV or Excel file",
+                type=["csv", "xlsx", "xls"],
+                key="csv_uploader"
+            )
+
+            if uploaded_file is not None:
                     col1, col2 = st.columns(2)
                     with col1:
                         dataset_name = st.text_input(
