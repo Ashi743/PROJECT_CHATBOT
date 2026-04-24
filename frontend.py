@@ -320,11 +320,14 @@ with st.sidebar:
         indexed_docs = get_indexed_documents()
         if indexed_docs:
             st.divider()
-            st.subheader("Indexed Documents")
-            for doc in indexed_docs[:10]:
-                with st.container(border=True):
-                    st.caption(f"📄 **{doc['name']}** ({doc['source']})")
-                    st.caption(f"Preview: {doc['preview']}")
+            with st.expander(f"📚 Indexed Documents ({len(indexed_docs)})", expanded=False):
+                for doc in indexed_docs[:10]:
+                    with st.container(border=True):
+                        st.caption(f"📄 **{doc['name']}** ({doc['source']})")
+                        st.caption(f"Preview: {doc['preview']}")
+
+                if len(indexed_docs) > 10:
+                    st.caption(f"... and {len(indexed_docs) - 10} more documents")
 
     col_csv, col_sql = st.columns(2)
 
