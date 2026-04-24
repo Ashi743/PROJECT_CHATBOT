@@ -17,18 +17,20 @@ web_search = DuckDuckGoSearchRun()
 
 
 def unified_rag_pipeline(question: str) -> dict:
-    """C-RAG + Self-RAG unified pipeline with ChromaDB retrieval"""
+    """C-RAG + Self-RAG unified pipeline with ChromaDB retrieval and source tracking"""
     max_loops = 3
     max_timeout = 30
     retrieval_count = 0
     generation_count = 0
     start_time = time.time()
     best_answer = None
+    sources_used = []
 
     while retrieval_count + generation_count < max_loops:
         if time.time() - start_time > max_timeout:
             return {
                 "answer": best_answer or "[TIMEOUT] Unable to generate answer within 30 seconds",
+                "sources": sources_used,
                 "metrics": {
                     "retrieval_loops": retrieval_count,
                     "generation_retries": generation_count,
@@ -51,11 +53,12 @@ def unified_rag_pipeline(question: str) -> dict:
         if not relevant_documents:
             try:
                 web_results = web_search.run(question)
-                relevant_documents = [{"content": web_results[:500], "source": "web_search"}]
+                relevant_documents = [{"content": web_results[:500], "source": "Web Search (DuckDuckGo)", "page": None}]
                 web_search_triggered = True
             except Exception as e:
                 return {
                     "answer": "[ERROR] Could not retrieve documents or search web",
+                    "sources": sources_used,
                     "metrics": {
                         "retrieval_loops": retrieval_count,
                         "generation_retries": generation_count,
@@ -67,6 +70,7 @@ def unified_rag_pipeline(question: str) -> dict:
                 }
 
         context = "\n\n".join([doc["content"] for doc in relevant_documents])[:2000]
+        sources_used = [{"name": doc.get("source", "unknown"), "page": doc.get("page")} for doc in relevant_documents]
 
         answer = generate_answer(question, context)
         best_answer = answer
@@ -87,6 +91,7 @@ def unified_rag_pipeline(question: str) -> dict:
 
         return {
             "answer": answer,
+            "sources": sources_used,
             "metrics": {
                 "retrieval_loops": retrieval_count,
                 "generation_retries": generation_count,
@@ -99,6 +104,7 @@ def unified_rag_pipeline(question: str) -> dict:
 
     return {
         "answer": best_answer or "[FAILED] Unable to generate answer after max retries",
+        "sources": sources_used,
         "metrics": {
             "retrieval_loops": retrieval_count,
             "generation_retries": generation_count,
@@ -128,20 +134,28 @@ def self_rag_query(question: str) -> str:
         question: User's question (5-500 characters)
 
     Returns:
-        str: Grounded answer with metrics
+        str: JSON with answer, sources, and metrics
     """
     if not question or len(question.strip()) < 5:
-        return "[ERROR] Question must be at least 5 characters long"
+        return json.dumps({"answer": "[ERROR] Question must be at least 5 characters long", "sources": [], "metrics": {}})
 
     result = unified_rag_pipeline(question.strip())
     answer = result.get("answer", "")
+    sources = result.get("sources", [])
     metrics = result.get("metrics", {})
 
-    response = f"{answer}\n\n[OK] Time: {metrics.get('response_time', 0):.2f}s | "
-    response += f"Loops: {metrics.get('total_loops', 0)} | "
-    response += f"Web: {'Yes' if metrics.get('web_search_triggered') else 'No'}"
+    response_obj = {
+        "answer": answer,
+        "sources": sources,
+        "metrics": {
+            "response_time": round(metrics.get('response_time', 0), 2),
+            "total_loops": metrics.get('total_loops', 0),
+            "web_search_triggered": metrics.get('web_search_triggered', False),
+            "success": metrics.get('success', False)
+        }
+    }
 
-    return response
+    return json.dumps(response_obj)
 
 
 if __name__ == "__main__":

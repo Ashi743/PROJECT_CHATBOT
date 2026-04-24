@@ -12,7 +12,7 @@ from tools.RAG.retriever import save_document_to_chroma, get_indexed_documents
 from monitoring.reports.formatter import format_daily_report, has_issues, format_issue_alert
 from monitoring.alerts.slack_alert import alert_daily
 from monitoring.alerts.gmail_alert import send_gmail_report
-from frontend.utils import new_thread_id, load_thread_messages, extract_first_5_words, update_thread_label
+from frontend.utils import new_thread_id, load_thread_messages, extract_first_5_words, update_thread_label, parse_rag_response, format_rag_output
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -1184,13 +1184,14 @@ else:
 
         CONFIG = RunnableConfig(configurable={"thread_id": st.session_state["current_thread_id"]})
 
-        def response_generator():
-            from langchain_core.messages import AIMessage, ToolMessage
-            import re
+        from langchain_core.messages import AIMessage, ToolMessage
+        import re
+        import json
 
-            full_response = ""
-            last_ai_message = None
+        full_response = ""
+        plot_paths = []
 
+        with st.chat_message("assistant"):
             for message_chunk, metadata in chatbot.stream(
                 {'messages': [HumanMessage(content=user_input)]},
                 config=CONFIG,
@@ -1198,16 +1199,13 @@ else:
 
                 # Only process AIMessage for display (skip ToolMessages and others)
                 if isinstance(message_chunk, AIMessage):
-                    last_ai_message = message_chunk
-                    # Only yield if it has text content and no tool_calls
+                    # Only process if it has text content and no tool_calls
                     if hasattr(message_chunk, 'content') and message_chunk.content:
                         if not message_chunk.tool_calls:  # Skip if it's a tool call message
                             content_str = str(message_chunk.content) if not isinstance(message_chunk.content, str) else message_chunk.content
                             full_response += content_str
-                            yield content_str
                 elif isinstance(message_chunk, str):
                     full_response += message_chunk
-                    yield message_chunk
                 # Skip ToolMessage - don't display tool execution details
 
             # Extract plot paths from response
@@ -1216,6 +1214,23 @@ else:
             # Remove plot markers from response for display
             display_response = re.sub(r'\[PLOT_IMAGE:[^\]]+\]\n?', '', full_response)
 
+            # Check if this is a RAG response (JSON format)
+            is_rag_response = False
+            rag_data = None
+            try:
+                parsed = json.loads(display_response)
+                if "answer" in parsed and "sources" in parsed:
+                    rag_data = parsed
+                    is_rag_response = True
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+            # Display response appropriately
+            if is_rag_response and rag_data:
+                format_rag_output({"data": rag_data})
+            elif display_response.strip():
+                st.write(display_response)
+
             # Only store if there's actual content to display
             if display_response.strip():
                 st.session_state["message_history"].append({'role': 'assistant', 'content': display_response})
@@ -1223,9 +1238,6 @@ else:
             # Store plots for display
             if plot_paths:
                 st.session_state["pending_plots"] = plot_paths
-
-        with st.chat_message("assistant"):
-            st.write_stream(response_generator())
 
         # Display any generated plots
         if st.session_state.get("pending_plots"):

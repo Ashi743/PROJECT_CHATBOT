@@ -75,7 +75,8 @@ def retrieve_documents(question: str, k: int = 4) -> List[Dict]:
         return [
             {
                 "content": doc.page_content[:500],
-                "source": doc.metadata.get("doc_name", "unknown")
+                "source": doc.metadata.get("doc_name", "unknown"),
+                "page": doc.metadata.get("page", None)
             }
             for doc in docs
         ]

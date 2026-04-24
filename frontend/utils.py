@@ -35,3 +35,36 @@ def update_thread_label(thread_id: str, user_input: str):
         if thread["id"] == thread_id:
             thread["label"] = label
             break
+
+def parse_rag_response(response_text: str) -> dict:
+    """Parse RAG JSON response and return structured data."""
+    import json
+    try:
+        data = json.loads(response_text)
+        if "answer" in data and "sources" in data:
+            return {"is_rag": True, "data": data}
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return {"is_rag": False, "text": response_text}
+
+def format_rag_output(response_data: dict):
+    """Format and display RAG response with source attribution."""
+    import streamlit as st
+
+    answer = response_data["data"]["answer"]
+    sources = response_data["data"]["sources"]
+    metrics = response_data["data"]["metrics"]
+
+    st.write(answer)
+
+    if sources:
+        st.divider()
+        st.markdown("### Sources")
+
+        for i, source in enumerate(sources, 1):
+            source_name = source.get("name", "Unknown")
+            page_info = f" (Page {source.get('page')})" if source.get("page") else ""
+            st.caption(f"**{i}. {source_name}{page_info}**")
+
+    st.divider()
+    st.caption(f"Response time: {metrics.get('response_time', 0):.2f}s | Loops: {metrics.get('total_loops', 0)} | Web search: {'Yes' if metrics.get('web_search_triggered') else 'No'}")
