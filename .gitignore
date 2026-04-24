@@ -66,3 +66,13 @@ chroma_db/
 data/monitoring_state.json
 monitoring_logs/
 data/runtime_state.json
+
+# Graphify temporary and cache files (keep only GRAPH_REPORT.md and graph.json)
+graphify-out/*.json
+graphify-out/obsidian/
+graphify-out/cypher.txt
+graphify-out/graph.html
+graphify-out/graph.svg
+graphify-out/graph.graphml
+.graphify*/
+.graphify_*

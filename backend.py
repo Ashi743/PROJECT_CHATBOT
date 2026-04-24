@@ -26,6 +26,7 @@ from tools.nlp_tool import nlp_analyze
 from tools.commodity_tool import get_commodity_price
 from tools.monitor_tool import start_monitoring, stop_monitoring, get_monitoring_results, get_active_monitors
 from tools.slack_alert_tool import slack_notify
+from tools.RAG.self_rag_tool import self_rag_query
 from gmail_toolkit.gmail import gmail_tools
 
 load_dotenv()
@@ -34,12 +35,13 @@ load_dotenv()
 llm_model = ChatOpenAI(model="gpt-4o-mini")  # Main chatbot (cost-effective)
 analysis_llm = ChatOpenAI(model="gpt-4o")    # Analysis interpretation (no token limits)
 
-# Combine base tools with Gmail tools, data analysis tools, NLP, monitoring, alerting, and calendar tools
+# Combine base tools with Gmail tools, data analysis tools, NLP, monitoring, alerting, calendar tools, and RAG tools
 base_tools = [
     get_stock_price, get_world_time, get_world_time_multiple, calculator, web_search, analyze_data, analyze_sql,
     nlp_analyze, get_commodity_price, start_monitoring, stop_monitoring,
     get_monitoring_results, get_active_monitors, slack_notify,
-    get_holidays, get_upcoming_holidays, list_supported_countries
+    get_holidays, get_upcoming_holidays, list_supported_countries,
+    self_rag_query
 ]
 all_tools = base_tools + gmail_tools
 tools = all_tools
