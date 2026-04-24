@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import logging
 from datetime import datetime
 from backend import chatbot, retrieve_thread, save_thread_label, delete_thread, rename_thread
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
@@ -13,6 +14,16 @@ from monitoring.reports.formatter import format_daily_report, has_issues, format
 from monitoring.alerts.slack_alert import alert_daily
 from monitoring.alerts.gmail_alert import send_gmail_report
 from frontend.utils import new_thread_id, load_thread_messages, extract_first_5_words, update_thread_label, parse_rag_response, format_rag_output
+
+# Memory system imports
+from memory.sync_wrapper import (
+    sync_load_long_term_memory,
+    sync_load_semantic,
+    sync_load_procedural,
+    sync_create_session,
+    sync_load_session,
+    sync_delete_session,
+)
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -150,6 +161,16 @@ if "last_user_input_key" not in st.session_state:
 if "last_response_hash" not in st.session_state:
     st.session_state["last_response_hash"] = None
 
+# Memory system session state
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = "default_user"
+
+if "memory_session" not in st.session_state:
+    st.session_state["memory_session"] = None
+
+if "user_memory" not in st.session_state:
+    st.session_state["user_memory"] = None
+
 
 ## ------------------- Streamlit UI ---------------------
 with st.sidebar:
@@ -269,6 +290,29 @@ with st.sidebar:
     with st.expander("View Tools (19 available)", expanded=False):
         for tool_name, tool_desc in AVAILABLE_TOOLS.items():
             st.caption(f"**{tool_name}**: {tool_desc}")
+
+    # Memory profile display
+    st.divider()
+    st.subheader("📋 Your Profile (Memory)")
+    try:
+        user_id = st.session_state.get("user_id", "default_user")
+        sem = sync_load_semantic(user_id)
+        proc = sync_load_procedural(user_id)
+
+        st.session_state["user_memory"] = {"semantic": sem, "procedural": proc}
+
+        if sem.name:
+            st.caption(f"Name: {sem.name}")
+        if sem.age:
+            st.caption(f"Age: {sem.age}")
+        if sem.city:
+            st.caption(f"Location: {sem.city}")
+        if sem.interests:
+            st.caption(f"Interests: {', '.join(sem.interests)}")
+        if proc.tone != "friendly" or proc.response_format != "concise":
+            st.caption(f"Preferences: {proc.tone} tone, {proc.response_format} format")
+    except Exception as e:
+        st.caption("(Memory system ready)")
 
     st.divider()
     st.subheader("📤 UPLOADS")
@@ -1176,6 +1220,18 @@ else:
 
         if command_executed:
             st.rerun()
+
+        # Initialize memory session if needed
+        if st.session_state["memory_session"] is None:
+            session_id = st.session_state.get("current_thread_id", str(uuid4()))
+            user_id = st.session_state.get("user_id", "default_user")
+            try:
+                mem_sess = sync_load_session(session_id)
+                if not mem_sess:
+                    mem_sess = sync_create_session(session_id, user_id)
+                st.session_state["memory_session"] = mem_sess
+            except Exception as e:
+                logging.warning(f"Memory session init failed: {e}")
 
         # Add user message to history only once
         user_msg_key = f"user_{user_input[:20]}_{len(st.session_state['message_history'])}"
