@@ -125,13 +125,6 @@ def result_node(state: SQLAnalystState) -> dict:
     }
 
 
-def should_continue(state: SQLAnalystState) -> str:
-    """Route based on status."""
-    if state["status"] in ["cancelled", "error", "completed"]:
-        return "end"
-    return "continue"
-
-
 # Build graph
 def _build_sql_analyst_graph():
     graph = StateGraph(SQLAnalystState)
@@ -144,7 +137,7 @@ def _build_sql_analyst_graph():
     graph.add_edge("parse", "safety")
     graph.add_edge("safety", "execute")
     graph.add_edge("execute", "result")
-    graph.add_conditional_edges("result", should_continue, {"continue": "execute", "end": END})
+    graph.add_edge("result", END)
 
     return graph
 

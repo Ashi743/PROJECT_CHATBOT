@@ -36,16 +36,20 @@ build/
 *.db-shm
 *.db-wal
 
-# Logs
+# Logs and monitoring outputs
 *.log
 logs/
+monitor.log
+monitor_results.jsonl
+monitor_summary.txt
 
 # OS
 Thumbs.db
 .DS_Store
 
 # Project specific
-.claude/
+.claude/settings.local.json
+.claude/worktrees/
 
 # Gmail OAuth2 credentials (NEVER commit)
 gmail_toolkit/credentials.json
@@ -57,3 +61,8 @@ data/plots/
 data/databases/
 data/metadata/
 chroma_db/
+
+# Monitoring state and logs
+data/monitoring_state.json
+monitoring_logs/
+data/runtime_state.json

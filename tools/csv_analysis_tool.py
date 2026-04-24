@@ -60,7 +60,7 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
                 break
 
         if not file_path and operation not in ['dataset_info', 'rag_search', 'visualize', 'histogram', 'correlation_plot', 'bar_chart', 'time_series', 'box_plot', 'insights']:
-            return f"Error: Dataset '{dataset_name}' not found in uploads. Available files: {list(UPLOAD_DIR.glob('*'))}"
+            return f"[ERROR] Dataset '{dataset_name}' not found in uploads. Available files: {list(UPLOAD_DIR.glob('*'))}"
 
         # Load dataframe for all operations except dataset_info, rag_search, and visualizations
         df = None
@@ -78,7 +78,7 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         # Check if dataframe was loaded for operations that require it
         if operation not in ['dataset_info', 'rag_search'] and df is None:
-            return f"Error: Could not load dataset '{dataset_name}'"
+            return f"[ERROR] Could not load dataset '{dataset_name}'"
 
         # Execute operation
         if operation == 'head' and df is not None:
@@ -91,7 +91,7 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         elif operation == 'describe':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             desc = df.describe()
             summary = f"**Statistical Summary of '{dataset_name}':**\n\n"
             for col in desc.columns:
@@ -101,7 +101,7 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         elif operation == 'info':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             info_str = f"Dataset: {dataset_name}\nShape: {df.shape}\nColumns:\n"
             for col in df.columns:
                 info_str += f"  {col}: {df[col].dtype} (nulls: {df[col].isnull().sum()})\n"
@@ -109,67 +109,67 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         elif operation == 'shape':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             rows, cols = df.shape
             return f"Dataset '{dataset_name}': {rows} rows, {cols} columns"
 
         elif operation == 'columns':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             return f"Columns in '{dataset_name}':\n" + ", ".join(df.columns.tolist())
 
         elif operation == 'dtypes':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             return f"Data types in '{dataset_name}':\n{df.dtypes.to_string()}"
 
         elif operation == 'value_counts':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             if not params:
-                return "Error: value_counts requires column name as param"
+                return "[ERROR] value_counts requires column name as param"
             if params not in df.columns:
-                return f"Error: Column '{params}' not found. Available: {df.columns.tolist()}"
+                return f"[ERROR] Column '{params}' not found. Available: {df.columns.tolist()}"
             counts = df[params].value_counts()
             return f"Value counts for '{params}' in '{dataset_name}':\n{counts.to_string()}"
 
         elif operation == 'groupby_sum':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             parts = params.split(',')
             if len(parts) != 2:
-                return "Error: groupby_sum requires 'group_col,value_col'"
+                return "[ERROR] groupby_sum requires 'group_col,value_col'"
             group_col, value_col = parts[0].strip(), parts[1].strip()
             if group_col not in df.columns or value_col not in df.columns:
-                return f"Error: Columns not found. Available: {df.columns.tolist()}"
+                return f"[ERROR] Columns not found. Available: {df.columns.tolist()}"
             result = df.groupby(group_col)[value_col].sum()
             return f"Sum by {group_col} in '{dataset_name}':\n{result.to_string()}"
 
         elif operation == 'groupby_mean':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             parts = params.split(',')
             if len(parts) != 2:
-                return "Error: groupby_mean requires 'group_col,value_col'"
+                return "[ERROR] groupby_mean requires 'group_col,value_col'"
             group_col, value_col = parts[0].strip(), parts[1].strip()
             if group_col not in df.columns or value_col not in df.columns:
-                return f"Error: Columns not found. Available: {df.columns.tolist()}"
+                return f"[ERROR] Columns not found. Available: {df.columns.tolist()}"
             result = df.groupby(group_col)[value_col].mean()
             return f"Mean by {group_col} in '{dataset_name}':\n{result.to_string()}"
 
         elif operation == 'groupby_count':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             if not params:
-                return "Error: groupby_count requires column name as param"
+                return "[ERROR] groupby_count requires column name as param"
             if params not in df.columns:
-                return f"Error: Column '{params}' not found. Available: {df.columns.tolist()}"
+                return f"[ERROR] Column '{params}' not found. Available: {df.columns.tolist()}"
             result = df.groupby(params).size()
             return f"Count by {params} in '{dataset_name}':\n{result.to_string()}"
 
         elif operation == 'filter':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             try:
                 filtered = df.query(params)
                 return f"Filtered results (first 10):\n{filtered.head(10).to_string()}"
@@ -178,7 +178,7 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         elif operation == 'correlation':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             numeric_df = df.select_dtypes(include=['number'])
             if numeric_df.empty:
                 return "No numeric columns found for correlation"
@@ -187,19 +187,19 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         elif operation == 'unique':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             unique_counts = df.nunique()
             return f"Unique values per column in '{dataset_name}':\n{unique_counts.to_string()}"
 
         elif operation == 'sort':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             parts = params.split(',') if params else []
             if len(parts) < 1:
-                return "Error: sort requires 'column' or 'column,asc/desc,N'"
+                return "[ERROR] sort requires 'column' or 'column,asc/desc,N'"
             col = parts[0].strip()
             if col not in df.columns:
-                return f"Error: Column '{col}' not found. Available: {df.columns.tolist()}"
+                return f"[ERROR] Column '{col}' not found. Available: {df.columns.tolist()}"
             ascending = True if (len(parts) < 2 or parts[1].strip().lower() == 'asc') else False
             n = int(parts[2]) if len(parts) >= 3 else 10
             sorted_df = df.sort_values(col, ascending=ascending).head(n)
@@ -207,20 +207,20 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         elif operation == 'null_count':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             nulls = df.isnull().sum()
             return f"Null values per column in '{dataset_name}':\n{nulls.to_string()}"
 
         elif operation == 'sample':
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             n = int(params) if params else 5
             sample = df.sample(min(n, len(df)))
             return f"{n} random rows from '{dataset_name}':\n{sample.to_string()}"
 
         elif operation == 'rag_search':
             if not params:
-                return "Error: rag_search requires a search query as param"
+                return "[ERROR] rag_search requires a search query as param"
             results = search_dataset(dataset_name, params, n_results=5)
             if not results or 'error' in results[0]:
                 return f"No results found for query: '{params}'"
@@ -235,7 +235,7 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
         elif operation == 'dataset_info':
             info = get_dataset_info(dataset_name)
             if 'error' in info:
-                return f"Error: {info['error']}"
+                return f"[ERROR] {info['error']}"
             info_str = f"Dataset Information: {dataset_name}\n"
             info_str += f"  Rows: {info.get('rows')}\n"
             info_str += f"  Columns: {', '.join(info.get('columns', []))}\n"
@@ -247,7 +247,7 @@ def analyze_data(dataset_name: str, operation: str, params: str = "") -> str:
 
         elif operation in ['visualize', 'histogram', 'correlation_plot', 'bar_chart', 'time_series', 'box_plot', 'insights']:
             if df is None:
-                return f"Error: Could not load dataset '{dataset_name}'"
+                return f"[ERROR] Could not load dataset '{dataset_name}'"
             try:
                 from tools.plot_utils import PlotGenerator
 

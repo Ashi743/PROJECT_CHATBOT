@@ -16,7 +16,7 @@ load_dotenv()
 os.environ["HOLIDAY_COUNTRY"] = "US"
 
 from backend import chatbot
-from langchain.messages import HumanMessage
+from langchain_core.messages import HumanMessage
 import uuid
 
 def test_backend_debug():
