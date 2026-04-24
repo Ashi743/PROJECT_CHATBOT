@@ -492,7 +492,13 @@ with st.sidebar:
                     col_confirm, col_cancel = st.columns(2)
                     with col_confirm:
                         if st.button("Yes, Delete", key=f"confirm_delete_doc_yes_{doc_name}", type="primary"):
-                            st.info("[INFO] Document delete feature coming soon")
+                            with st.spinner(f"Deleting '{doc_name}'..."):
+                                from tools.RAG.retriever import delete_document
+                                result = delete_document(doc_name)
+                                if result["status"] == "ok":
+                                    st.success(result["message"])
+                                else:
+                                    st.error(result["message"])
                             st.session_state[f"confirm_delete_doc_{doc_name}"] = False
                             st.rerun()
                     with col_cancel:

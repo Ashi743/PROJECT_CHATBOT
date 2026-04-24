@@ -101,3 +101,60 @@ def get_indexed_documents() -> List[Dict]:
         return documents
     except Exception as e:
         return []
+
+
+def delete_document(doc_name: str) -> Dict:
+    """Delete all indexed chunks for a document (FAST batch delete)."""
+    try:
+        vectorstore = get_chroma_vectorstore()
+        collection = vectorstore._collection
+
+        # Get all documents
+        results = collection.get()
+        metadatas = results.get("metadatas", [])
+        doc_ids = results.get("ids", [])
+
+        # Find all chunks belonging to this document
+        ids_to_delete = [
+            doc_ids[i]
+            for i in range(len(doc_ids))
+            if metadatas[i].get("doc_name") == doc_name
+        ]
+
+        if not ids_to_delete:
+            return {"status": "ok", "message": f"Document '{doc_name}' not found", "deleted_count": 0}
+
+        # Batch delete all chunks at once (fast)
+        collection.delete(ids=ids_to_delete)
+
+        return {
+            "status": "ok",
+            "message": f"[OK] Deleted '{doc_name}' ({len(ids_to_delete)} chunks removed)",
+            "deleted_count": len(ids_to_delete)
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"[ERROR] Delete failed: {str(e)}", "deleted_count": 0}
+
+
+def delete_all_documents() -> Dict:
+    """Delete all indexed documents (clear entire collection)."""
+    try:
+        vectorstore = get_chroma_vectorstore()
+        collection = vectorstore._collection
+
+        results = collection.get()
+        all_ids = results.get("ids", [])
+
+        if not all_ids:
+            return {"status": "ok", "message": "No documents to delete", "deleted_count": 0}
+
+        # Delete all at once
+        collection.delete(ids=all_ids)
+
+        return {
+            "status": "ok",
+            "message": f"[OK] Cleared all ({len(all_ids)} chunks removed)",
+            "deleted_count": len(all_ids)
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"[ERROR] Clear failed: {str(e)}", "deleted_count": 0}
