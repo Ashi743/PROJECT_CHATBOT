@@ -168,6 +168,27 @@
 - Unified error format across all components
 - Central logging with file + stdout output
 
+### Token Efficiency Insight (2026-04-24)
+
+**Observation:** Graphify (knowledge graph) queries cost $0 in LLM tokens, while Claude direct queries cost ~500 tokens each.
+
+**Tested Scenario:** "Show me all APIs in this project"
+- Graphify: $0 (pure graph traversal, no LLM), 92 APIs found, included 5 pydeck JS noise
+- Claude: ~500 tokens, 90% accuracy, cleaner output
+
+**Recommendation:** For repeated codebase queries, use graphify:
+```
+/graphify query "architecture question"    # $0
+/graphify path "module1" "module2"         # $0
+/graphify explain "api_check"              # $0
+```
+
+Over 100 codebase queries:
+- Graphify: $0 + persistent graph stays current with code
+- Claude: ~$0.10 + slower response + must re-read code each time
+
+**Implementation:** graphify-out/ contains persistent 7,079-node graph (24,021 edges, 48 communities). Run `/graphify query` or `graphify query "<question>"` from CLI for zero-cost architectural analysis.
+
 ---
 
 ## Environment & Configuration

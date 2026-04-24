@@ -181,3 +181,51 @@ CALENDARIFIC_API_KEY=...
 
 - **FRONTEND_REDESIGN_PROMPT.md** — Updated spec showing planned vs. implemented features
 - **.claude/specs/** — Detailed tool, pipeline, and monitoring specifications
+
+## 🧠 Knowledge Graph (graphify)
+
+A persistent knowledge graph of the codebase is maintained in `graphify-out/`:
+- **graph.json** (11 MB) — 7,079 nodes, 48 communities, 24,021 edges
+- **graph.graphml** — Open in Gephi for visual exploration
+- **GRAPH_REPORT.md** — God nodes, surprising connections, suggested questions
+
+### Querying the Graph (Zero Token Cost)
+
+For codebase questions, use graphify instead of asking Claude directly:
+
+```bash
+# Show all APIs in the project
+/graphify query "show me all apis"
+
+# Trace a specific dependency
+/graphify path "frontend.py" "monitor_tool"
+
+# Explain a component
+/graphify explain "check_apis"
+
+# Find shortest connection between concepts
+/graphify path "stock_tool" "slack_alert"
+```
+
+### Token Efficiency Comparison
+
+| Approach | Token Cost | Best For | Speed |
+|----------|-----------|----------|-------|
+| **graphify query** | $0 (no LLM) | Codebase facts, APIs, dependencies | ~1s |
+| **Claude direct** | ~500 tokens | Context, reasoning, "why" questions | Instant |
+
+**Example:** 100 API queries via graphify = $0. Same queries to Claude = ~$0.10 (+ slower).
+
+### When to Use Each
+
+**Use graphify** for:
+- What APIs exist?
+- How does X call Y?
+- Where is rate limiting implemented?
+- What components talk to the monitor?
+
+**Use Claude** for:
+- Why was this architecture chosen?
+- How should I implement feature X?
+- Code review or optimization advice
+- Multi-file refactoring
