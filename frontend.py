@@ -526,11 +526,11 @@ with st.sidebar:
         # Show available databases
         databases = get_database_list()
         if databases:
-        for db_name in sorted(databases.keys()):
-            db_info = databases[db_name]
-            is_confirming_delete = st.session_state.get(f"confirm_delete_db_{db_name}", False)
+            for db_name in sorted(databases.keys()):
+                db_info = databases[db_name]
+                is_confirming_delete = st.session_state.get(f"confirm_delete_db_{db_name}", False)
 
-            with st.expander(f"[DB] {db_name}", expanded=is_confirming_delete):
+                with st.expander(f"[DB] {db_name}", expanded=is_confirming_delete):
                 # Show metadata
                 created_date = db_info.get('created_at', 'N/A')[:10]
                 table_count = len(db_info.get('tables', []))
