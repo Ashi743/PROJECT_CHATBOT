@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import logging
 from datetime import datetime
 from backend import chatbot, retrieve_thread, save_thread_label, delete_thread, rename_thread
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
@@ -13,6 +14,16 @@ from monitoring.reports.formatter import format_daily_report, has_issues, format
 from monitoring.alerts.slack_alert import alert_daily
 from monitoring.alerts.gmail_alert import send_gmail_report
 from frontend.utils import new_thread_id, load_thread_messages, extract_first_5_words, update_thread_label, parse_rag_response, format_rag_output
+
+# Memory system imports
+from memory.sync_wrapper import (
+    sync_load_long_term_memory,
+    sync_load_semantic,
+    sync_load_procedural,
+    sync_create_session,
+    sync_load_session,
+    sync_delete_session,
+)
 
 st.set_page_config(
     page_title="Chat Bot",
@@ -150,6 +161,16 @@ if "last_user_input_key" not in st.session_state:
 if "last_response_hash" not in st.session_state:
     st.session_state["last_response_hash"] = None
 
+# Memory system session state
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = "default_user"
+
+if "memory_session" not in st.session_state:
+    st.session_state["memory_session"] = None
+
+if "user_memory" not in st.session_state:
+    st.session_state["user_memory"] = None
+
 
 ## ------------------- Streamlit UI ---------------------
 with st.sidebar:
@@ -269,6 +290,29 @@ with st.sidebar:
     with st.expander("View Tools (19 available)", expanded=False):
         for tool_name, tool_desc in AVAILABLE_TOOLS.items():
             st.caption(f"**{tool_name}**: {tool_desc}")
+
+    # Memory profile display
+    st.divider()
+    st.subheader("📋 Your Profile (Memory)")
+    try:
+        user_id = st.session_state.get("user_id", "default_user")
+        sem = sync_load_semantic(user_id)
+        proc = sync_load_procedural(user_id)
+
+        st.session_state["user_memory"] = {"semantic": sem, "procedural": proc}
+
+        if sem.name:
+            st.caption(f"Name: {sem.name}")
+        if sem.age:
+            st.caption(f"Age: {sem.age}")
+        if sem.city:
+            st.caption(f"Location: {sem.city}")
+        if sem.interests:
+            st.caption(f"Interests: {', '.join(sem.interests)}")
+        if proc.tone != "friendly" or proc.response_format != "concise":
+            st.caption(f"Preferences: {proc.tone} tone, {proc.response_format} format")
+    except Exception as e:
+        st.caption("(Memory system ready)")
 
     st.divider()
     st.subheader("📤 UPLOADS")
@@ -448,7 +492,13 @@ with st.sidebar:
                     col_confirm, col_cancel = st.columns(2)
                     with col_confirm:
                         if st.button("Yes, Delete", key=f"confirm_delete_doc_yes_{doc_name}", type="primary"):
-                            st.info("[INFO] Document delete feature coming soon")
+                            with st.spinner(f"Deleting '{doc_name}'..."):
+                                from tools.RAG.retriever import delete_document
+                                result = delete_document(doc_name)
+                                if result["status"] == "ok":
+                                    st.success(result["message"])
+                                else:
+                                    st.error(result["message"])
                             st.session_state[f"confirm_delete_doc_{doc_name}"] = False
                             st.rerun()
                     with col_cancel:
@@ -676,6 +726,42 @@ with st.sidebar:
         st.caption(f"Interval: {st.session_state['monitor_interval']} min")
     else:
         st.info("Monitor: STOPPED")
+
+    # Memory System Monitoring
+    st.divider()
+    st.caption("💾 Memory & Cache Status")
+    try:
+        from memory.cache_wrapper import sync_get_cache_stats
+        cache_stats = sync_get_cache_stats()
+        if cache_stats:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Response Cache", cache_stats.get("response", 0), help="Cached LLM responses")
+            with col2:
+                st.metric("Tool Cache", cache_stats.get("tool", 0), help="Cached API results")
+
+            col3, col4 = st.columns(2)
+            with col3:
+                st.metric("Semantic Cache", cache_stats.get("semantic", 0), help="Similar questions")
+            with col4:
+                st.metric("Node Cache", cache_stats.get("node", 0), help="Graph node results")
+
+            # Token usage
+            token_data = cache_stats.get("tokens", {})
+            if token_data and token_data.get("total", 0) > 0:
+                col5, col6 = st.columns(2)
+                with col5:
+                    st.metric("Input Tokens", token_data.get("input", 0), help="Prompt tokens sent")
+                with col6:
+                    st.metric("Output Tokens", token_data.get("output", 0), help="Completion tokens received")
+
+            total_cached = cache_stats.get("response", 0) + cache_stats.get("semantic", 0) + cache_stats.get("tool", 0) + cache_stats.get("node", 0)
+            if total_cached > 0:
+                st.success(f"[OK] {total_cached} items cached (50-100x faster on hit!)")
+        else:
+            st.caption("[STALE] Redis/ChromaDB not available")
+    except Exception as e:
+        st.caption(f"[ALERT] Memory monitoring unavailable: {str(e)[:50]}")
 
     gmail_now_btn = False
     slack_now_btn = False
@@ -1176,6 +1262,18 @@ else:
 
         if command_executed:
             st.rerun()
+
+        # Initialize memory session if needed
+        if st.session_state["memory_session"] is None:
+            session_id = st.session_state.get("current_thread_id", str(uuid4()))
+            user_id = st.session_state.get("user_id", "default_user")
+            try:
+                mem_sess = sync_load_session(session_id)
+                if not mem_sess:
+                    mem_sess = sync_create_session(session_id, user_id)
+                st.session_state["memory_session"] = mem_sess
+            except Exception as e:
+                logging.warning(f"Memory session init failed: {e}")
 
         # Add user message to history only once
         user_msg_key = f"user_{user_input[:20]}_{len(st.session_state['message_history'])}"

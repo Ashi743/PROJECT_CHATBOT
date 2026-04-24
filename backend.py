@@ -1,5 +1,5 @@
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, ToolMessage, AIMessage, HumanMessage
+from langchain_core.messages import BaseMessage, ToolMessage, AIMessage, HumanMessage, SystemMessage
 
 from langgraph.graph import StateGraph, START ,END
 from langgraph.graph.message import add_messages
@@ -12,6 +12,17 @@ import logging
 from typing import TypedDict ,Annotated
 from dotenv import load_dotenv
 from utils.logging_config import setup_logging
+
+# Memory system imports
+from memory.sync_wrapper import sync_load_long_term_memory
+from memory.context_builder import build_memory_block
+from memory.cache_wrapper import (
+    sync_get_cached_response,
+    sync_cache_response,
+    sync_get_tool_result,
+    sync_cache_tool_result,
+    sync_track_tokens,
+)
 
 # Set up logging
 setup_logging()
@@ -90,13 +101,80 @@ def _requires_analysis_llm(messages: list[BaseMessage]) -> bool:
 
 
 def chat_node(state:chatState):
-    message= state["messages"]
+    message = state["messages"]
+
+    # Extract user query for caching and memory
+    user_query = ""
+    for msg in reversed(message):
+        if isinstance(msg, HumanMessage):
+            user_query = _message_content_text(msg.content)
+            break
+
+    # ── Layer 1: Check Response Cache (skip LLM entirely) ──
+    if user_query:
+        cached_response = sync_get_cached_response(user_query)
+        if cached_response:
+            logging.info(f"Cache HIT: Returning cached response (50-100x faster!)")
+            return {'messages': [AIMessage(content=cached_response)]}
+
+    # Load memory context if available (graceful degradation if unavailable)
+    memory_block = ""
+    try:
+        import streamlit as st
+        user_id = st.session_state.get("user_id", "default_user")
+
+        if user_query:
+            ltm = sync_load_long_term_memory(user_id, user_query, top_k=5)
+            memory_block = build_memory_block(ltm)
+            logging.debug(f"Loaded memory context for {user_id}")
+    except Exception as e:
+        logging.warning(f"Memory loading skipped: {e}")
+
+    # Build system prompt with memory context
+    system_prompt = (
+        "You are a helpful AI assistant with access to multiple tools and data analysis capabilities. "
+        "You help users with calculations, data analysis, web search, stock prices, commodity prices, "
+        "scheduling, email, alerts, and more.\n\n"
+    )
+
+    if memory_block:
+        system_prompt += (
+            f"{memory_block}\n\n"
+            "Use the memory context above to personalize your responses. "
+        )
+
+    system_prompt += (
+        "Always refer to tool results when available. Be concise but thorough. "
+        "Ask clarifying questions if needed."
+    )
+
+    # Prepend system message with memory context
+    messages_with_memory = [SystemMessage(content=system_prompt)] + message
+
     # Route to appropriate LLM based on analysis keywords or recent results
     if _requires_analysis_llm(message):
         analysis_llm_with_tools = analysis_llm.bind_tools(tools)
-        response = analysis_llm_with_tools.invoke(message)
+        response = analysis_llm_with_tools.invoke(messages_with_memory)
     else:
-        response = llm_with_tools.invoke(message)
+        response = llm_with_tools.invoke(messages_with_memory)
+
+    # ── Track token usage ──
+    try:
+        if hasattr(response, 'response_metadata'):
+            usage = response.response_metadata.get('usage', {})
+            input_tokens = usage.get('prompt_tokens', 0)
+            output_tokens = usage.get('completion_tokens', 0)
+            if input_tokens or output_tokens:
+                sync_track_tokens(input_tokens, output_tokens)
+    except Exception as e:
+        logging.debug(f"Token tracking skipped: {e}")
+
+    # ── Cache the response for future use ──
+    if user_query and isinstance(response, AIMessage):
+        response_text = _message_content_text(response.content)
+        sync_cache_response(user_query, response_text)
+        logging.debug(f"Cached response for future use (24h TTL)")
+
     return {'messages': [response]}
 
 def tool_node(state:chatState):
