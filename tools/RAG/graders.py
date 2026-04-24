@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, max_tokens=100)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, max_completion_tokens=100)
 
 def grade_document_relevance(question: str, document: str) -> str:
     """PROMPT 1: Document Relevance Grading [IsRel] — C-RAG LAYER"""
@@ -29,7 +29,10 @@ Retrieved document:
 Is this document relevant and useful for answering the question?"""
 
     response = llm.invoke(prompt)
-    result = response.content.strip().lower()
+    if isinstance(response.content, str):
+        result = response.content.strip().lower()
+    else:
+        result = str(response.content).strip().lower()
     return "yes" if "yes" in result else "no"
 
 
@@ -55,7 +58,10 @@ Question: {question}
 Answer:"""
 
     response = llm.invoke(prompt)
-    return response.content.strip()
+    if isinstance(response.content, str):
+        return response.content.strip()
+    else:
+        return str(response.content).strip()
 
 
 def check_hallucination(documents: str, generation: str) -> str:
@@ -90,7 +96,10 @@ Generated answer:
 Is this answer grounded in the facts?"""
 
     response = llm.invoke(prompt)
-    result = response.content.strip().lower()
+    if isinstance(response.content, str):
+        result = response.content.strip().lower()
+    else:
+        result = str(response.content).strip().lower()
     return "yes" if "yes" in result else "no"
 
 
@@ -127,5 +136,8 @@ Generated answer:
 Does this answer adequately address the question?"""
 
     response = llm.invoke(prompt)
-    result = response.content.strip().lower()
+    if isinstance(response.content, str):
+        result = response.content.strip().lower()
+    else:
+        result = str(response.content).strip().lower()
     return "yes" if "yes" in result else "no"
