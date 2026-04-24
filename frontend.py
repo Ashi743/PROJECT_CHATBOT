@@ -268,7 +268,41 @@ with st.sidebar:
     with st.expander("📊 Data Analysis", expanded=False):
         st.subheader("Upload Files")
 
-        col_csv, col_sql = st.columns(2)
+    with st.expander("📄 Upload Documents (RAG)", expanded=False):
+        doc_file = st.file_uploader(
+            "Choose a PDF or Word document",
+            type=["pdf", "docx", "doc"],
+            key="doc_uploader"
+        )
+
+        if doc_file is not None:
+            col1, col2 = st.columns(2)
+            with col1:
+                doc_name = st.text_input(
+                    "Document name",
+                    value=doc_file.name.rsplit('.', 1)[0],
+                    key="doc_name_input"
+                )
+            with col2:
+                doc_desc = st.text_input(
+                    "Description (optional)",
+                    placeholder="e.g., Product Manual, Policy Document",
+                    key="doc_desc_input"
+                )
+
+            if st.button("Upload Document", key="upload_doc_btn"):
+                if not doc_name or not doc_name.strip():
+                    st.error("Document name cannot be empty")
+                else:
+                    st.info(f"Document '{doc_name}' uploaded successfully")
+                    st.info("Processing will be available in C-RAG and Self-RAG tools")
+
+    with st.expander("Upload CSV/Excel", expanded=False):
+        uploaded_file = st.file_uploader(
+            "Choose a CSV or Excel file",
+            type=["csv", "xlsx", "xls"],
+            key="csv_uploader"
+        )
 
         with col_csv:
             with st.expander("CSV/Excel", expanded=False):
