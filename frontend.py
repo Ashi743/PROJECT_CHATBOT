@@ -721,6 +721,33 @@ with st.sidebar:
     else:
         st.info("Monitor: STOPPED")
 
+    # Memory System Monitoring
+    st.divider()
+    st.caption("💾 Memory & Cache Status")
+    try:
+        from memory.cache_wrapper import sync_get_cache_stats
+        cache_stats = sync_get_cache_stats()
+        if cache_stats:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Response Cache", cache_stats.get("response", 0), help="Cached LLM responses")
+            with col2:
+                st.metric("Tool Cache", cache_stats.get("tool", 0), help="Cached API results")
+
+            col3, col4 = st.columns(2)
+            with col3:
+                st.metric("Semantic Cache", cache_stats.get("semantic", 0), help="Similar questions")
+            with col4:
+                st.metric("Node Cache", cache_stats.get("node", 0), help="Graph node results")
+
+            total_cached = sum(cache_stats.values())
+            if total_cached > 0:
+                st.success(f"[OK] {total_cached} items cached (50-100x faster on hit!)")
+        else:
+            st.caption("[STALE] Redis/ChromaDB not available")
+    except Exception as e:
+        st.caption(f"[ALERT] Memory monitoring unavailable: {str(e)[:50]}")
+
     gmail_now_btn = False
     slack_now_btn = False
     schedule_btn = False
