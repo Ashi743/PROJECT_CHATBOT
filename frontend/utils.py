@@ -53,18 +53,57 @@ def format_rag_output(response_data: dict):
 
     answer = response_data["data"]["answer"]
     sources = response_data["data"]["sources"]
+    doc_count = response_data["data"].get("doc_count", 0)
+    web_count = response_data["data"].get("web_count", 0)
     metrics = response_data["data"]["metrics"]
+
+    # Show source type before answer
+    source_type = ""
+    if doc_count > 0 and web_count == 0:
+        source_type = "📄 **From RAG Retrieval** (Indexed Documents)"
+    elif web_count > 0 and doc_count == 0:
+        source_type = "🌐 **From Web Search** (DuckDuckGo)"
+    elif doc_count > 0 and web_count > 0:
+        source_type = "📄🌐 **From RAG + Web Search** (Documents + Web)"
+
+    if source_type:
+        st.markdown(source_type)
 
     st.write(answer)
 
-    if sources:
-        st.divider()
-        st.markdown("### Sources")
+    st.divider()
 
-        for i, source in enumerate(sources, 1):
-            source_name = source.get("name", "Unknown")
-            page_info = f" (Page {source.get('page')})" if source.get("page") else ""
-            st.caption(f"**{i}. {source_name}{page_info}**")
+    # Detailed source breakdown
+    if doc_count > 0 or web_count > 0:
+        st.markdown("### Source Breakdown")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric("📄 RAG Retrieval", f"{doc_count} source(s)")
+
+        with col2:
+            st.metric("🌐 Web Search", f"{web_count} source(s)")
+
+    if sources:
+        st.markdown("#### Source Details")
+
+        # Separate documents and web sources
+        doc_sources = [s for s in sources if "Web Search" not in s.get("name", "")]
+        web_sources = [s for s in sources if "Web Search" in s.get("name", "")]
+
+        if doc_sources:
+            st.markdown("**From Indexed Documents:**")
+            for i, source in enumerate(doc_sources, 1):
+                source_name = source.get("name", "Unknown")
+                page_info = f" (Page {source.get('page')})" if source.get("page") else ""
+                st.caption(f"📄 {i}. {source_name}{page_info}")
+
+        if web_sources:
+            st.markdown("**From Web Search:**")
+            for i, source in enumerate(web_sources, 1):
+                source_name = source.get("name", "Unknown")
+                st.caption(f"🌐 {i}. {source_name}")
 
     st.divider()
-    st.caption(f"Response time: {metrics.get('response_time', 0):.2f}s | Loops: {metrics.get('total_loops', 0)} | Web search: {'Yes' if metrics.get('web_search_triggered') else 'No'}")
+    st.caption(f"Response time: {metrics.get('response_time', 0):.2f}s | Reasoning loops: {metrics.get('total_loops', 0)}")

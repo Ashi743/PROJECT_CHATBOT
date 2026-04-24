@@ -145,6 +145,10 @@ if "awaiting_hitl" not in st.session_state:
     st.session_state["awaiting_hitl"] = False
 if "hitl_context" not in st.session_state:
     st.session_state["hitl_context"] = None
+if "last_user_input_key" not in st.session_state:
+    st.session_state["last_user_input_key"] = None
+if "last_response_hash" not in st.session_state:
+    st.session_state["last_response_hash"] = None
 
 
 ## ------------------- Streamlit UI ---------------------
@@ -1173,7 +1177,12 @@ else:
         if command_executed:
             st.rerun()
 
-        st.session_state["message_history"].append({'role': 'user', 'content': user_input})
+        # Add user message to history only once
+        user_msg_key = f"user_{user_input[:20]}_{len(st.session_state['message_history'])}"
+        if not st.session_state.get("last_user_input_key") == user_msg_key:
+            st.session_state["message_history"].append({'role': 'user', 'content': user_input})
+            st.session_state["last_user_input_key"] = user_msg_key
+
         with st.chat_message("user"):
             st.markdown(user_input)
 
@@ -1187,57 +1196,59 @@ else:
         from langchain_core.messages import AIMessage, ToolMessage
         import re
         import json
+        import hashlib
 
         full_response = ""
         plot_paths = []
 
+        # Collect full response before displaying (no intermediate renders)
+        for message_chunk, metadata in chatbot.stream(
+            {'messages': [HumanMessage(content=user_input)]},
+            config=CONFIG,
+            stream_mode="messages"):
+
+            if isinstance(message_chunk, AIMessage):
+                if hasattr(message_chunk, 'content') and message_chunk.content:
+                    if not message_chunk.tool_calls:
+                        content_str = str(message_chunk.content) if not isinstance(message_chunk.content, str) else message_chunk.content
+                        full_response += content_str
+            elif isinstance(message_chunk, str):
+                full_response += message_chunk
+
+        # Extract plot paths from response
+        plot_paths = re.findall(r'\[PLOT_IMAGE:([^\]]+)\]', full_response)
+
+        # Remove plot markers from response for display
+        display_response = re.sub(r'\[PLOT_IMAGE:[^\]]+\]\n?', '', full_response).strip()
+
+        # Check if this is a RAG response (JSON format)
+        is_rag_response = False
+        rag_data = None
+        try:
+            parsed = json.loads(display_response)
+            if "answer" in parsed and "sources" in parsed:
+                rag_data = parsed
+                is_rag_response = True
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Only add to history if not already added (prevent duplicates on rerun)
+        response_hash = hashlib.md5(display_response.encode()).hexdigest()
+        if not st.session_state.get("last_response_hash") == response_hash:
+            if display_response:
+                st.session_state["message_history"].append({'role': 'assistant', 'content': display_response})
+                st.session_state["last_response_hash"] = response_hash
+
+        # Now display the complete response
         with st.chat_message("assistant"):
-            for message_chunk, metadata in chatbot.stream(
-                {'messages': [HumanMessage(content=user_input)]},
-                config=CONFIG,
-                stream_mode="messages"):
-
-                # Only process AIMessage for display (skip ToolMessages and others)
-                if isinstance(message_chunk, AIMessage):
-                    # Only process if it has text content and no tool_calls
-                    if hasattr(message_chunk, 'content') and message_chunk.content:
-                        if not message_chunk.tool_calls:  # Skip if it's a tool call message
-                            content_str = str(message_chunk.content) if not isinstance(message_chunk.content, str) else message_chunk.content
-                            full_response += content_str
-                elif isinstance(message_chunk, str):
-                    full_response += message_chunk
-                # Skip ToolMessage - don't display tool execution details
-
-            # Extract plot paths from response
-            plot_paths = re.findall(r'\[PLOT_IMAGE:([^\]]+)\]', full_response)
-
-            # Remove plot markers from response for display
-            display_response = re.sub(r'\[PLOT_IMAGE:[^\]]+\]\n?', '', full_response)
-
-            # Check if this is a RAG response (JSON format)
-            is_rag_response = False
-            rag_data = None
-            try:
-                parsed = json.loads(display_response)
-                if "answer" in parsed and "sources" in parsed:
-                    rag_data = parsed
-                    is_rag_response = True
-            except (json.JSONDecodeError, ValueError):
-                pass
-
-            # Display response appropriately
             if is_rag_response and rag_data:
                 format_rag_output({"data": rag_data})
-            elif display_response.strip():
+            elif display_response:
                 st.write(display_response)
 
-            # Only store if there's actual content to display
-            if display_response.strip():
-                st.session_state["message_history"].append({'role': 'assistant', 'content': display_response})
-
-            # Store plots for display
-            if plot_paths:
-                st.session_state["pending_plots"] = plot_paths
+        # Store plots for display
+        if plot_paths:
+            st.session_state["pending_plots"] = plot_paths
 
         # Display any generated plots
         if st.session_state.get("pending_plots"):

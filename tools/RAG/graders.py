@@ -1,54 +1,34 @@
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, max_completion_tokens=100)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, max_completion_tokens=50)
+answer_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, max_completion_tokens=500)
 
 def grade_document_relevance(question: str, document: str) -> str:
     """PROMPT 1: Document Relevance Grading [IsRel] — C-RAG LAYER"""
-    prompt = f"""You are a relevance grader. Your job is to evaluate whether a retrieved
-document is relevant to answering the user's question.
-
-GRADING CRITERIA:
-  - Is the document directly relevant to the question?
-  - Does it contain useful information (not just tangentially related)?
-  - Would including this document help answer the question?
-
-Be STRICT, not lenient:
-  - Vague or only partially related documents → score "no"
-  - Only score "yes" if the document clearly helps
-
-Respond with ONLY "yes" or "no". No explanation.
+    prompt = f"""Answer with ONLY "yes" or "no". Nothing else.
 
 Question: {question}
 
-Retrieved document:
-{document}
+Document: {document[:300]}
 
-Is this document relevant and useful for answering the question?"""
+Is this document relevant?"""
 
     response = llm.invoke(prompt)
     if isinstance(response.content, str):
         result = response.content.strip().lower()
     else:
         result = str(response.content).strip().lower()
-    return "yes" if "yes" in result else "no"
+
+    return "yes" if result.startswith("yes") else "no"
 
 
 def generate_answer(question: str, context: str) -> str:
     """PROMPT 2: Answer Generation"""
-    prompt = f"""You are a helpful, accurate assistant. Answer using ONLY the provided context.
-
-RULES:
-  1. Use ONLY information from the context
-  2. If context insufficient, say so clearly
-  3. Be concise and direct
-  4. When relevant, cite which part of context you're using
-  5. Do NOT make up information or speculate
-
-If you truly cannot answer from the context:
-"I don't have enough information in the provided documents to answer this adequately."
+    prompt = f"""Answer using ONLY the provided context. Be direct and clear.
 
 Context:
 {context}
@@ -57,87 +37,47 @@ Question: {question}
 
 Answer:"""
 
-    response = llm.invoke(prompt)
+    response = answer_llm.invoke(prompt)
     if isinstance(response.content, str):
-        return response.content.strip()
+        answer = response.content.strip()
     else:
-        return str(response.content).strip()
+        answer = str(response.content).strip()
+
+    answer = re.sub(r'\b(yes|no)\b\s*', '', answer, flags=re.IGNORECASE).strip()
+    return answer if answer else "I don't have enough information in the provided documents to answer this adequately."
 
 
 def check_hallucination(documents: str, generation: str) -> str:
     """PROMPT 3: Hallucination Check [IsSup] — SELF-RAG LAYER"""
-    prompt = f"""You are a hallucination detector. Your job is to verify whether a generated
-answer is grounded in the provided facts.
+    prompt = f"""Is this answer grounded in the facts? Answer "yes" or "no" only.
 
-GRADING CRITERIA:
-  - Read the facts provided in the documents
-  - Read the generated answer
-  - Check if EVERY claim in the answer can be traced back to the documents
-  - If any claim contradicts or goes beyond the documents → hallucination
+Facts: {documents[:300]}
 
-WHAT COUNTS AS HALLUCINATION:
-  ✗ Invented statistics or numbers
-  ✗ Unsupported conclusions
-  ✗ Claims not mentioned in documents
-  ✗ Speculation presented as fact
+Answer: {generation[:300]}
 
-Be CRITICAL:
-  - When in doubt, mark as hallucination
-  - Better false positive than false negative
-
-Respond with ONLY "yes" (grounded) or "no" (hallucination). No explanation.
-
-Facts from documents:
-{documents[:2000]}
-
-Generated answer:
-{generation}
-
-Is this answer grounded in the facts?"""
+Grounded?"""
 
     response = llm.invoke(prompt)
     if isinstance(response.content, str):
         result = response.content.strip().lower()
     else:
         result = str(response.content).strip().lower()
-    return "yes" if "yes" in result else "no"
+    return "yes" if result.startswith("yes") else "no"
 
 
 def check_usefulness(question: str, generation: str) -> str:
     """PROMPT 4: Usefulness Check [IsUse] — SELF-RAG LAYER"""
-    prompt = f"""You are an answer quality grader. Your job is to assess whether a generated
-answer adequately addresses the user's original question.
+    prompt = f"""Does this answer adequately address the question? Answer "yes" or "no" only.
 
-GRADING CRITERIA:
-  - Does it directly answer what was asked?
-  - Is it complete enough to be helpful?
-  - Would a user be satisfied with this answer?
+Question: {question}
 
-SCORE "no" IF:
-  ✗ Answer is vague or incomplete
-  ✗ It avoids the main question
-  ✗ Provides irrelevant information instead
+Answer: {generation[:300]}
 
-SCORE "yes" IF:
-  ✓ Clearly addresses the question
-  ✓ Provides concrete, useful information
-  ✓ A user would find it helpful
-
-Be STRICT on completeness.
-
-Respond with ONLY "yes" or "no". No explanation.
-
-Original question:
-{question}
-
-Generated answer:
-{generation}
-
-Does this answer adequately address the question?"""
+Adequate?"""
 
     response = llm.invoke(prompt)
     if isinstance(response.content, str):
         result = response.content.strip().lower()
     else:
         result = str(response.content).strip().lower()
-    return "yes" if "yes" in result else "no"
+    return "yes" if result.startswith("yes") else "no"

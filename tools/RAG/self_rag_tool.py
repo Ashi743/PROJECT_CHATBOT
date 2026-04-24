@@ -25,12 +25,17 @@ def unified_rag_pipeline(question: str) -> dict:
     start_time = time.time()
     best_answer = None
     sources_used = []
+    doc_sources = []
+    web_sources = []
 
     while retrieval_count + generation_count < max_loops:
         if time.time() - start_time > max_timeout:
+            answer_text = (best_answer or "[TIMEOUT] Unable to generate answer within 30 seconds").strip()
             return {
-                "answer": best_answer or "[TIMEOUT] Unable to generate answer within 30 seconds",
+                "answer": answer_text,
                 "sources": sources_used,
+                "doc_source_count": len(doc_sources),
+                "web_source_count": len(web_sources),
                 "metrics": {
                     "retrieval_loops": retrieval_count,
                     "generation_retries": generation_count,
@@ -55,10 +60,13 @@ def unified_rag_pipeline(question: str) -> dict:
                 web_results = web_search.run(question)
                 relevant_documents = [{"content": web_results[:500], "source": "Web Search (DuckDuckGo)", "page": None}]
                 web_search_triggered = True
+                web_sources = [{"name": "Web Search (DuckDuckGo)"}]
             except Exception as e:
                 return {
                     "answer": "[ERROR] Could not retrieve documents or search web",
                     "sources": sources_used,
+                    "doc_source_count": len(doc_sources),
+                    "web_source_count": 0,
                     "metrics": {
                         "retrieval_loops": retrieval_count,
                         "generation_retries": generation_count,
@@ -68,9 +76,11 @@ def unified_rag_pipeline(question: str) -> dict:
                         "error": str(e)
                     }
                 }
+        else:
+            doc_sources = [{"name": doc.get("source", "unknown"), "page": doc.get("page")} for doc in relevant_documents]
 
         context = "\n\n".join([doc["content"] for doc in relevant_documents])[:2000]
-        sources_used = [{"name": doc.get("source", "unknown"), "page": doc.get("page")} for doc in relevant_documents]
+        sources_used = doc_sources if doc_sources else web_sources
 
         answer = generate_answer(question, context)
         best_answer = answer
@@ -89,9 +99,12 @@ def unified_rag_pipeline(question: str) -> dict:
             generation_count += 1
             continue
 
+        answer_text = answer.strip() if answer else ""
         return {
-            "answer": answer,
+            "answer": answer_text,
             "sources": sources_used,
+            "doc_source_count": len(doc_sources),
+            "web_source_count": len(web_sources) if web_search_triggered else 0,
             "metrics": {
                 "retrieval_loops": retrieval_count,
                 "generation_retries": generation_count,
@@ -102,9 +115,12 @@ def unified_rag_pipeline(question: str) -> dict:
             }
         }
 
+    answer_text = (best_answer or "[FAILED] Unable to generate answer after max retries").strip()
     return {
-        "answer": best_answer or "[FAILED] Unable to generate answer after max retries",
+        "answer": answer_text,
         "sources": sources_used,
+        "doc_source_count": len(doc_sources),
+        "web_source_count": len(web_sources),
         "metrics": {
             "retrieval_loops": retrieval_count,
             "generation_retries": generation_count,
@@ -137,16 +153,20 @@ def self_rag_query(question: str) -> str:
         str: JSON with answer, sources, and metrics
     """
     if not question or len(question.strip()) < 5:
-        return json.dumps({"answer": "[ERROR] Question must be at least 5 characters long", "sources": [], "metrics": {}})
+        return json.dumps({"answer": "[ERROR] Question must be at least 5 characters long", "sources": [], "doc_count": 0, "web_count": 0, "metrics": {}})
 
     result = unified_rag_pipeline(question.strip())
     answer = result.get("answer", "")
     sources = result.get("sources", [])
+    doc_source_count = result.get("doc_source_count", 0)
+    web_source_count = result.get("web_source_count", 0)
     metrics = result.get("metrics", {})
 
     response_obj = {
         "answer": answer,
         "sources": sources,
+        "doc_count": doc_source_count,
+        "web_count": web_source_count,
         "metrics": {
             "response_time": round(metrics.get('response_time', 0), 2),
             "total_loops": metrics.get('total_loops', 0),
