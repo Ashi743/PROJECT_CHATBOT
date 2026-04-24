@@ -746,7 +746,16 @@ with st.sidebar:
             with col4:
                 st.metric("Node Cache", cache_stats.get("node", 0), help="Graph node results")
 
-            total_cached = sum(cache_stats.values())
+            # Token usage
+            token_data = cache_stats.get("tokens", {})
+            if token_data and token_data.get("total", 0) > 0:
+                col5, col6 = st.columns(2)
+                with col5:
+                    st.metric("Input Tokens", token_data.get("input", 0), help="Prompt tokens sent")
+                with col6:
+                    st.metric("Output Tokens", token_data.get("output", 0), help="Completion tokens received")
+
+            total_cached = cache_stats.get("response", 0) + cache_stats.get("semantic", 0) + cache_stats.get("tool", 0) + cache_stats.get("node", 0)
             if total_cached > 0:
                 st.success(f"[OK] {total_cached} items cached (50-100x faster on hit!)")
         else:

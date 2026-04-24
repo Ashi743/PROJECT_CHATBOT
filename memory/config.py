@@ -30,6 +30,7 @@ PFX_SEM = "cache:sem"
 PFX_RAG = "cache:rag"
 PFX_TOOL = "cache:tool"
 PFX_NODE = "cache:node"
+PFX_TOKENS = "tokens"
 PFX_MEM_SEMANTIC = "memory:semantic"
 PFX_MEM_PROCEDURAL = "memory:procedural"
 

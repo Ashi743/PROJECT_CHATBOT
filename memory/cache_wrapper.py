@@ -96,6 +96,25 @@ def sync_clear_cache(cache_type: str = "all") -> None:
         logger.warning(f"Cache clear failed: {e}")
 
 
+def sync_track_tokens(input_tokens: int = 0, output_tokens: int = 0) -> None:
+    """Track API token usage."""
+    try:
+        cache = get_cache()
+        cache.track_tokens(input_tokens, output_tokens)
+    except Exception as e:
+        logger.warning(f"Token tracking failed: {e}")
+
+
+def sync_get_token_usage() -> dict:
+    """Get current token usage."""
+    try:
+        cache = get_cache()
+        return cache.get_token_usage()
+    except Exception as e:
+        logger.warning(f"Token usage retrieval failed: {e}")
+        return {"input": 0, "output": 0, "total": 0}
+
+
 def sync_get_cache_stats() -> dict:
     """Get cache statistics."""
     try:

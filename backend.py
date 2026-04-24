@@ -21,6 +21,7 @@ from memory.cache_wrapper import (
     sync_cache_response,
     sync_get_tool_result,
     sync_cache_tool_result,
+    sync_track_tokens,
 )
 
 # Set up logging
@@ -156,6 +157,17 @@ def chat_node(state:chatState):
         response = analysis_llm_with_tools.invoke(messages_with_memory)
     else:
         response = llm_with_tools.invoke(messages_with_memory)
+
+    # ── Track token usage ──
+    try:
+        if hasattr(response, 'response_metadata'):
+            usage = response.response_metadata.get('usage', {})
+            input_tokens = usage.get('prompt_tokens', 0)
+            output_tokens = usage.get('completion_tokens', 0)
+            if input_tokens or output_tokens:
+                sync_track_tokens(input_tokens, output_tokens)
+    except Exception as e:
+        logging.debug(f"Token tracking skipped: {e}")
 
     # ── Cache the response for future use ──
     if user_query and isinstance(response, AIMessage):

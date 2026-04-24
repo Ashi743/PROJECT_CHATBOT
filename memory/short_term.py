@@ -20,6 +20,7 @@ from memory.config import (
     PFX_RAG,
     PFX_TOOL,
     PFX_NODE,
+    PFX_TOKENS,
 )
 
 logger = logging.getLogger(__name__)
@@ -194,6 +195,44 @@ class CacheLayers:
         except Exception as e:
             logger.warning(f"Response cache clear failed: {e}")
 
+    # ── Token Usage Tracking (session scope) ──
+    def track_tokens(self, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        """Track API token usage for current session."""
+        try:
+            key = f"{PFX_TOKENS}:session"
+            current = self.redis.hgetall(key) or {}
+
+            input_total = int(current.get(b"input", 0)) if current else 0
+            output_total = int(current.get(b"output", 0)) if current else 0
+
+            input_total += input_tokens
+            output_total += output_tokens
+
+            self.redis.hset(key, mapping={"input": input_total, "output": output_total})
+            self.redis.expire(key, 86400)  # 24h TTL
+
+            logger.debug(f"Tracked tokens - Input: +{input_tokens}, Output: +{output_tokens}")
+        except Exception as e:
+            logger.warning(f"Token tracking failed: {e}")
+
+    def get_token_usage(self) -> dict:
+        """Get current session token usage."""
+        try:
+            key = f"{PFX_TOKENS}:session"
+            data = self.redis.hgetall(key) or {}
+
+            input_tokens = int(data.get(b"input", 0)) if data else 0
+            output_tokens = int(data.get(b"output", 0)) if data else 0
+
+            return {
+                "input": input_tokens,
+                "output": output_tokens,
+                "total": input_tokens + output_tokens
+            }
+        except Exception as e:
+            logger.warning(f"Token usage retrieval failed: {e}")
+            return {"input": 0, "output": 0, "total": 0}
+
     def clear_all_caches(self) -> None:
         """Clear all cache layers (use cautiously)."""
         try:
@@ -213,7 +252,7 @@ class CacheLayers:
             logger.warning(f"Cache clear all failed: {e}")
 
     def get_cache_stats(self) -> dict:
-        """Get cache statistics."""
+        """Get cache statistics including token usage."""
         try:
             stats = {}
             patterns = {
@@ -226,6 +265,11 @@ class CacheLayers:
             for name, pattern in patterns.items():
                 keys = self.redis.keys(pattern)
                 stats[name] = len(keys) if keys else 0
+
+            # Add token usage
+            token_data = self.get_token_usage()
+            stats["tokens"] = token_data
+
             return stats
         except Exception as e:
             logger.warning(f"Cache stats failed: {e}")
