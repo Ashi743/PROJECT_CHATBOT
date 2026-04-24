@@ -267,10 +267,9 @@ with st.sidebar:
             st.caption(f"**{tool_name}**: {tool_desc}")
 
     st.divider()
-    with st.expander("📊 Data Analysis", expanded=False):
-        st.subheader("Upload Files")
+    st.subheader("📤 UPLOADS")
 
-    with st.expander("📄 Upload Documents (C-RAG + Self-RAG)", expanded=False):
+    with st.expander("📄 RAG Documents (PDF/Word/CSV/Excel)", expanded=False):
         doc_file = st.file_uploader(
             "Choose a PDF, Word, CSV, or Excel file for RAG indexing",
             type=["pdf", "docx", "doc", "csv", "xlsx", "xls"],
@@ -317,22 +316,7 @@ with st.sidebar:
                             if os.path.exists(tmp_path):
                                 os.remove(tmp_path)
 
-        indexed_docs = get_indexed_documents()
-        if indexed_docs:
-            st.divider()
-            with st.expander(f"📚 Indexed Documents ({len(indexed_docs)})", expanded=False):
-                for doc in indexed_docs[:10]:
-                    with st.container(border=True):
-                        st.caption(f"📄 **{doc['name']}** ({doc['source']})")
-                        st.caption(f"Preview: {doc['preview']}")
-
-                if len(indexed_docs) > 10:
-                    st.caption(f"... and {len(indexed_docs) - 10} more documents")
-
-    col_csv, col_sql = st.columns(2)
-
-    with col_csv:
-        with st.expander("Upload CSV/Excel", expanded=False):
+    with st.expander("📊 CSV/Excel (Datasets)", expanded=False):
             uploaded_file = st.file_uploader(
                 "Choose a CSV or Excel file",
                 type=["csv", "xlsx", "xls"],
@@ -393,38 +377,52 @@ with st.sidebar:
                                             status.update(label="✗ Error during analysis", state="error")
                                             st.error(f"✗ Error: {str(e)}")
 
-        with col_sql:
-            with st.expander("SQL", expanded=False):
-                uploaded_sql_file = st.file_uploader(
-                    "Choose a .sql file",
-                    type=["sql"],
-                    key="sql_uploader"
-                )
+    with st.expander("🗄️ SQL Files (Databases)", expanded=False):
+        uploaded_sql_file = st.file_uploader(
+            "Choose a .sql file",
+            type=["sql"],
+            key="sql_uploader"
+        )
 
-                if uploaded_sql_file is not None:
-                    if st.button("Upload SQL File", key="upload_sql_btn"):
-                        with st.spinner("Processing SQL file..."):
-                            result = ingest_sql_file(
-                                file_bytes=uploaded_sql_file.getvalue(),
-                                file_name=uploaded_sql_file.name
-                            )
+        if uploaded_sql_file is not None:
+            if st.button("Upload SQL File", key="upload_sql_btn"):
+                with st.spinner("Processing SQL file..."):
+                    result = ingest_sql_file(
+                        file_bytes=uploaded_sql_file.getvalue(),
+                        file_name=uploaded_sql_file.name
+                    )
 
-                            if result["status"] == "ok":
-                                st.success(f"[OK] {result['message']}")
-                                st.info(f"Tables created: {', '.join(result['tables']) if result['tables'] else 'None'}")
-                                if result.get('warnings'):
-                                    st.warning(f"[WARNING] {len(result['warnings'])} statement(s) had issues")
-                                st.rerun()
-                            else:
-                                st.error(f"[ERROR] {result['message']}")
+                    if result["status"] == "ok":
+                        st.success(f"[OK] {result['message']}")
+                        st.info(f"Tables created: {', '.join(result['tables']) if result['tables'] else 'None'}")
+                        if result.get('warnings'):
+                            st.warning(f"[WARNING] {len(result['warnings'])} statement(s) had issues")
+                        st.rerun()
+                    else:
+                        st.error(f"[ERROR] {result['message']}")
 
-        st.divider()
-        st.subheader("Datasets & Databases")
+    st.divider()
+    st.subheader("📚 DOCUMENTS")
 
-        # Show available datasets with HITL controls
-        datasets = list_datasets()
+    indexed_docs = get_indexed_documents()
+    if indexed_docs:
+        with st.expander(f"📄 Indexed Documents ({len(indexed_docs)})", expanded=False):
+            for doc in indexed_docs[:10]:
+                with st.container(border=True):
+                    st.caption(f"📄 **{doc['name']}** ({doc['source']})")
+                    st.caption(f"Preview: {doc['preview']}")
+
+            if len(indexed_docs) > 10:
+                st.caption(f"... and {len(indexed_docs) - 10} more documents")
+    else:
+        st.caption("No documents indexed yet. Upload documents in the RAG Documents section above.")
+
+    st.divider()
+    st.subheader("📊 DATASETS")
+
+    # Show available datasets with HITL controls
+    datasets = list_datasets()
     if datasets:
-        st.subheader("📁 Available Datasets")
         for ds in datasets:
             is_confirming_delete = st.session_state.get(f"confirm_delete_dataset_{ds}", False)
             with st.expander(f"📊 {ds}", expanded=is_confirming_delete):
@@ -521,10 +519,12 @@ with st.sidebar:
                                 st.session_state[f"confirm_delete_dataset_{ds}"] = False
                                 st.rerun()
 
+    st.divider()
+    st.subheader("🗄️ DATABASES")
+
     # Show available databases
     databases = get_database_list()
     if databases:
-        st.subheader("Available Databases")
         for db_name in sorted(databases.keys()):
             db_info = databases[db_name]
             is_confirming_delete = st.session_state.get(f"confirm_delete_db_{db_name}", False)
