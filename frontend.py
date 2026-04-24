@@ -402,27 +402,28 @@ with st.sidebar:
                         st.error(f"[ERROR] {result['message']}")
 
     st.divider()
-    st.subheader("📚 DOCUMENTS")
 
-    indexed_docs = get_indexed_documents()
-    if indexed_docs:
-        with st.expander(f"📄 Indexed Documents ({len(indexed_docs)})", expanded=False):
-            for doc in indexed_docs[:10]:
-                with st.container(border=True):
-                    st.caption(f"📄 **{doc['name']}** ({doc['source']})")
-                    st.caption(f"Preview: {doc['preview']}")
+    with st.expander("📊 UPLOADED DATA", expanded=True):
+        st.markdown("### 📚 Documents")
+        indexed_docs = get_indexed_documents()
+        if indexed_docs:
+            with st.expander(f"Indexed ({len(indexed_docs)})", expanded=False):
+                for doc in indexed_docs[:10]:
+                    with st.container(border=True):
+                        st.caption(f"📄 **{doc['name']}**")
+                        st.caption(f"{doc['source']}")
 
-            if len(indexed_docs) > 10:
-                st.caption(f"... and {len(indexed_docs) - 10} more documents")
-    else:
-        st.caption("No documents indexed yet. Upload documents in the RAG Documents section above.")
+                if len(indexed_docs) > 10:
+                    st.caption(f"... +{len(indexed_docs) - 10} more")
+        else:
+            st.caption("No documents yet")
 
-    st.divider()
-    st.subheader("📊 DATASETS")
+        st.divider()
+        st.markdown("### 📊 Datasets")
 
-    # Show available datasets with HITL controls
-    datasets = list_datasets()
-    if datasets:
+        # Show available datasets with HITL controls
+        datasets = list_datasets()
+        if datasets:
         for ds in datasets:
             is_confirming_delete = st.session_state.get(f"confirm_delete_dataset_{ds}", False)
             with st.expander(f"📊 {ds}", expanded=is_confirming_delete):
@@ -519,12 +520,12 @@ with st.sidebar:
                                 st.session_state[f"confirm_delete_dataset_{ds}"] = False
                                 st.rerun()
 
-    st.divider()
-    st.subheader("🗄️ DATABASES")
+        st.divider()
+        st.markdown("### 🗄️ Databases")
 
-    # Show available databases
-    databases = get_database_list()
-    if databases:
+        # Show available databases
+        databases = get_database_list()
+        if databases:
         for db_name in sorted(databases.keys()):
             db_info = databases[db_name]
             is_confirming_delete = st.session_state.get(f"confirm_delete_db_{db_name}", False)
@@ -586,8 +587,7 @@ with st.sidebar:
                             st.rerun()
 
     st.divider()
-    st.divider()
-    st.subheader("Pipeline Monitor")
+    st.subheader("⚙️ MONITORING")
 
     monitor_selection = st.multiselect(
         "Select monitors:",
