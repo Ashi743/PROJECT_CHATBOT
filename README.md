@@ -1,3 +1,11 @@
+<img width="1273" height="679" alt="Screenshot 2026-04-25 221646" src="https://github.com/user-attachments/assets/4afcebdb-5c1f-4a27-8d02-0b9afefe0504" />
+
+<img width="1277" height="673" alt="Screenshot 2026-04-25 221754" src="https://github.com/user-attachments/assets/32a04d8f-5b01-4652-91f5-6b2163b64c7f" />
+
+<img width="1273" height="677" alt="Screenshot 2026-04-25 221905" src="https://github.com/user-attachments/assets/45cbdf1e-ec6d-4e45-95ed-8a17a9037ea1" />
+
+
+
 # Chat Bot — Multi-Tool AI Assistant
 
 AI-powered chatbot with real-time monitoring, data analysis, and intelligent document search.
