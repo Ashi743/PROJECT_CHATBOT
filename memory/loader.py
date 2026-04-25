@@ -1,9 +1,8 @@
 """Memory loader — assembles long-term memory for chat."""
 
 import logging
-from memory.store import MemoryStore
 from memory.models import LongTermMemory
-from memory.config import REDIS_URL, CHROMA_HOST, CHROMA_PORT, EPISODIC_TOP_K, EPISODIC_MIN_IMP
+from memory.config import EPISODIC_TOP_K, EPISODIC_MIN_IMP
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,8 @@ def load_long_term_memory(
         LongTermMemory object ready for prompt injection
     """
     try:
-        store = MemoryStore(redis_url=REDIS_URL, chroma_host=CHROMA_HOST, chroma_port=CHROMA_PORT)
+        from memory.sync_wrapper import _get_store
+        store = _get_store()
 
         # Load semantic profile (fast)
         semantic = store.get_semantic(user_id)

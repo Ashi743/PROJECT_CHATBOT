@@ -1,5 +1,6 @@
 import time
 import json
+import re
 from langchain_core.tools import tool
 from langchain_community.tools import DuckDuckGoSearchRun
 from dotenv import load_dotenv
@@ -83,6 +84,11 @@ def unified_rag_pipeline(question: str) -> dict:
         sources_used = doc_sources if doc_sources else web_sources
 
         answer = generate_answer(question, context)
+        # Clean answer: remove any leading yes/no patterns from grader contamination
+        answer = answer.strip()
+        # Remove patterns like "yes", "no", "Yes.No.", "YesNo.YesYes." at the start
+        answer = re.sub(r'^(?:yes|no)(?:[.,\s]*(?:yes|no))*[.,\s]*', '', answer, flags=re.IGNORECASE).strip()
+
         best_answer = answer
         generation_count += 1
 
@@ -137,42 +143,36 @@ def self_rag_query(question: str) -> str:
     """Query documents using C-RAG + Self-RAG with ChromaDB.
 
     Dual-layer quality control system:
-    1. C-RAG: Document relevance grading (Prompt 1)
-    2. RAG Generation: Answer from context (Prompt 2)
-    3. Self-RAG: Hallucination check (Prompt 3)
-    4. Self-RAG: Usefulness check (Prompt 4)
+    1. C-RAG: Document relevance grading
+    2. RAG Generation: Answer from context
+    3. Self-RAG: Hallucination check
+    4. Self-RAG: Usefulness check
 
-    Supports: PDF, Word (.docx, .doc), CSV, Excel files
+    Supports: PDF, Word (.docx, .doc), CSV, Excel, Markdown files
     Web search fallback: DuckDuckGo (if no relevant documents)
     Vector database: ChromaDB
 
     Args:
-        question: User's question (5-500 characters)
+        question: User's question about indexed documents
 
     Returns:
-        str: JSON with answer, sources, and metrics
+        str: JSON with answer, sources, and metadata
     """
-    if not question or len(question.strip()) < 5:
-        return json.dumps({"answer": "[ERROR] Question must be at least 5 characters long", "sources": [], "doc_count": 0, "web_count": 0, "metrics": {}})
+    if not question or len(question.strip()) < 3:
+        return json.dumps({"answer": "Question too short. Please ask a more detailed question.", "sources": []})
 
     result = unified_rag_pipeline(question.strip())
     answer = result.get("answer", "")
     sources = result.get("sources", [])
     doc_source_count = result.get("doc_source_count", 0)
     web_source_count = result.get("web_source_count", 0)
-    metrics = result.get("metrics", {})
 
+    # Return clean JSON format for frontend parsing
     response_obj = {
-        "answer": answer,
+        "answer": answer.strip(),
         "sources": sources,
         "doc_count": doc_source_count,
-        "web_count": web_source_count,
-        "metrics": {
-            "response_time": round(metrics.get('response_time', 0), 2),
-            "total_loops": metrics.get('total_loops', 0),
-            "web_search_triggered": metrics.get('web_search_triggered', False),
-            "success": metrics.get('success', False)
-        }
+        "web_count": web_source_count
     }
 
     return json.dumps(response_obj)

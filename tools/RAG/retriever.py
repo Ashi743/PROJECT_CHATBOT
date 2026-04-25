@@ -1,24 +1,39 @@
 import os
 from pathlib import Path
 from typing import List, Dict
+import chromadb
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 import pandas as pd
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
-CHROMA_DB_PATH = "data/chroma_db"
+# Use server-based Chroma (same as chatbot memory system)
+CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8000))
+
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
+# Document chunking settings
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=100,
+    separators=["\n\n", "\n", " ", ""]
+)
+
 def get_chroma_vectorstore():
-    Path(CHROMA_DB_PATH).mkdir(parents=True, exist_ok=True)
+    """Get Chroma vectorstore (server-based for consistency with chatbot)."""
+    client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
     return Chroma(
-        persist_directory=CHROMA_DB_PATH,
+        client=client,
         embedding_function=embeddings,
-        collection_name="documents"
+        collection_name="rag_documents"
     )
 
 def save_document_to_chroma(file_path: str, doc_name: str) -> Dict:
@@ -41,6 +56,11 @@ def save_document_to_chroma(file_path: str, doc_name: str) -> Dict:
         ).stdout
         docs = [Document(page_content=text, metadata={"source": file_path})]
 
+    elif file_path.endswith(".md"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        docs = [Document(page_content=text, metadata={"source": file_path})]
+
     elif file_path.endswith((".csv", ".xlsx", ".xls")):
         if file_path.endswith(".csv"):
             df = pd.read_csv(file_path)
@@ -49,22 +69,33 @@ def save_document_to_chroma(file_path: str, doc_name: str) -> Dict:
         text = df.to_string()
         docs = [Document(page_content=text, metadata={"source": file_path})]
 
+    elif file_path.endswith(".txt"):
+        with open(file_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        docs = [Document(page_content=text, metadata={"source": file_path})]
+
     else:
-        return {"status": "error", "message": "Unsupported file type"}
+        return {"status": "error", "message": "Unsupported file type. Supported: PDF, DOCX, DOC, MD, TXT, CSV, XLSX, XLS"}
 
     if not docs:
         return {"status": "error", "message": "No documents extracted"}
 
+    # Add metadata to all docs
     for doc in docs:
         doc.metadata["doc_name"] = doc_name
 
+    # Chunk documents for better retrieval
+    chunked_docs = text_splitter.split_documents(docs)
+    logger.info(f"Chunked '{doc_name}' into {len(chunked_docs)} chunks (from {len(docs)} pages)")
+
     vectorstore = get_chroma_vectorstore()
-    vectorstore.add_documents(docs)
+    vectorstore.add_documents(chunked_docs)
 
     return {
         "status": "ok",
-        "message": f"Document '{doc_name}' added to Chroma vector store",
-        "doc_count": len(docs)
+        "message": f"Document '{doc_name}' chunked into {len(chunked_docs)} pieces and added to Chroma",
+        "doc_count": len(docs),
+        "chunk_count": len(chunked_docs)
     }
 
 

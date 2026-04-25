@@ -110,6 +110,7 @@ def chat_node(state:chatState):
             user_query = _message_content_text(msg.content)
             break
 
+
     # ── Layer 1: Check Response Cache (skip LLM entirely) ──
     if user_query:
         cached_response = sync_get_cached_response(user_query)
@@ -134,7 +135,26 @@ def chat_node(state:chatState):
     system_prompt = (
         "You are a helpful AI assistant with access to multiple tools and data analysis capabilities. "
         "You help users with calculations, data analysis, web search, stock prices, commodity prices, "
-        "scheduling, email, alerts, and more.\n\n"
+        "scheduling, email, alerts, document analysis, and more.\n\n"
+        "IMPORTANT TOOL USAGE RULES:\n\n"
+        "1. DOCUMENT QUERIES (C-RAG + Self-RAG):\n"
+        "   - When user asks about uploaded documents, reconciliation, exceptions, guides, or references:\n"
+        "   - ALWAYS use self_rag_query() tool to retrieve from indexed documents\n"
+        "   - Extract the user's question and pass it to self_rag_query\n"
+        "   - This tool handles ChromaDB retrieval, grading, and hallucination checks\n\n"
+        "2. TIME-RELATED QUERIES:\n"
+        "   - Use get_world_time() for single city queries\n"
+        "   - Use get_world_time_multiple() for multiple city comparisons\n"
+        "   - Extract city names from the user's query\n\n"
+        "3. HOLIDAY QUERIES:\n"
+        "   - Use get_upcoming_holidays() to fetch actual holiday data\n"
+        "   - Extract the country from the user's query\n\n"
+        "4. RAG DOCUMENT RESPONSES:\n"
+        "   - When you receive a RAG tool result (contains 'answer' and 'sources'):\n"
+        "   - Present the answer directly from the tool result\n"
+        "   - Always cite the sources provided\n"
+        "   - Format sources as: 'Based on [source name] (page X)'\n"
+        "   - Do NOT regenerate or paraphrase the answer\n\n"
     )
 
     if memory_block:

@@ -5,7 +5,6 @@ import json
 import logging
 from typing import Optional, Any
 
-from memory.store import MemoryStore
 from memory.config import (
     REDIS_URL,
     CHROMA_HOST,
@@ -29,9 +28,10 @@ logger = logging.getLogger(__name__)
 class CacheLayers:
     """5 cache layers for response, semantic, RAG, tool, and node results."""
 
-    def __init__(self, redis_url: str = REDIS_URL, chroma_host: str = CHROMA_HOST, chroma_port: int = CHROMA_PORT):
-        """Initialize cache with Redis backend."""
-        self.store = MemoryStore(redis_url=redis_url, chroma_host=chroma_host, chroma_port=chroma_port)
+    def __init__(self):
+        """Initialize cache with Redis backend using singleton MemoryStore."""
+        from memory.sync_wrapper import _get_store
+        self.store = _get_store()
         self.redis = self.store.redis
 
     # ── Layer 1: Response Cache (24h TTL) ──
@@ -284,9 +284,7 @@ def get_cache() -> CacheLayers:
     """Get global cache instance (singleton)."""
     global _cache_instance
     if _cache_instance is None:
-        _cache_instance = CacheLayers(
-            redis_url=REDIS_URL, chroma_host=CHROMA_HOST, chroma_port=CHROMA_PORT
-        )
+        _cache_instance = CacheLayers()
     return _cache_instance
 
 
