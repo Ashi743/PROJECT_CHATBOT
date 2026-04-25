@@ -110,35 +110,6 @@ def chat_node(state:chatState):
             user_query = _message_content_text(msg.content)
             break
 
-    # ── Check if last message is RAG tool result (avoid double-processing) ──
-    if message:
-        last_msg = message[-1]
-        if isinstance(last_msg, ToolMessage):
-            # Check if this is a RAG response
-            try:
-                import json
-                rag_data = json.loads(last_msg.content)
-                if "answer" in rag_data and "sources" in rag_data:
-                    # Format RAG response into readable message
-                    answer = rag_data.get("answer", "")
-                    sources = rag_data.get("sources", [])
-
-                    # Build formatted response
-                    formatted = answer.strip()
-                    if sources:
-                        formatted += "\n\n**Sources:**"
-                        for i, source in enumerate(sources, 1):
-                            source_name = source.get("name", "unknown")
-                            source_page = source.get("page")
-                            if source_page:
-                                formatted += f"\n{i}. {source_name} (page {source_page})"
-                            else:
-                                formatted += f"\n{i}. {source_name}"
-
-                    logging.debug("RAG response detected - returning formatted")
-                    return {'messages': [AIMessage(content=formatted)]}
-            except (json.JSONDecodeError, ValueError):
-                pass
 
     # ── Layer 1: Check Response Cache (skip LLM entirely) ──
     if user_query:
@@ -178,6 +149,12 @@ def chat_node(state:chatState):
         "3. HOLIDAY QUERIES:\n"
         "   - Use get_upcoming_holidays() to fetch actual holiday data\n"
         "   - Extract the country from the user's query\n\n"
+        "4. RAG DOCUMENT RESPONSES:\n"
+        "   - When you receive a RAG tool result (contains 'answer' and 'sources'):\n"
+        "   - Present the answer directly from the tool result\n"
+        "   - Always cite the sources provided\n"
+        "   - Format sources as: 'Based on [source name] (page X)'\n"
+        "   - Do NOT regenerate or paraphrase the answer\n\n"
     )
 
     if memory_block:
