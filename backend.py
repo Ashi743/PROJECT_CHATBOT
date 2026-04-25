@@ -119,9 +119,24 @@ def chat_node(state:chatState):
                 import json
                 rag_data = json.loads(last_msg.content)
                 if "answer" in rag_data and "sources" in rag_data:
-                    # This is a RAG response - return it directly without LLM re-processing
-                    logging.debug("RAG response detected - returning directly")
-                    return {'messages': [AIMessage(content=last_msg.content)]}
+                    # Format RAG response into readable message
+                    answer = rag_data.get("answer", "")
+                    sources = rag_data.get("sources", [])
+
+                    # Build formatted response
+                    formatted = answer.strip()
+                    if sources:
+                        formatted += "\n\n**Sources:**"
+                        for i, source in enumerate(sources, 1):
+                            source_name = source.get("name", "unknown")
+                            source_page = source.get("page")
+                            if source_page:
+                                formatted += f"\n{i}. {source_name} (page {source_page})"
+                            else:
+                                formatted += f"\n{i}. {source_name}"
+
+                    logging.debug("RAG response detected - returning formatted")
+                    return {'messages': [AIMessage(content=formatted)]}
             except (json.JSONDecodeError, ValueError):
                 pass
 
